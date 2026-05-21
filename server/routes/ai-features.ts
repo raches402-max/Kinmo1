@@ -25,6 +25,7 @@ import { Router } from "express";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
+import { fail } from "../lib/responses";
 import {
   requireGroupOwnership,
   requireItineraryAccess,
@@ -357,18 +358,18 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Verify user owns this group
     const userId = await getUserId(req);
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this group" });
+      return fail(res, 403, "Not authorized to modify this group");
     }
 
     const { prompt } = req.body;
     if (!prompt || typeof prompt !== 'string') {
-      return res.status(400).json({ message: "Prompt is required" });
+      return fail(res, 400, "Prompt is required");
     }
 
     // Parse the natural language prompt with group history for smarter understanding
@@ -432,7 +433,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
     );
 
     if (places.length === 0) {
-      return res.status(404).json({ message: "No venues found matching your criteria" });
+      return fail(res, 404, "No venues found matching your criteria");
     }
 
     // Get existing activities to avoid duplicates
@@ -511,7 +512,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
       });
 
     if (qualityPlaces.length === 0) {
-      return res.status(404).json({ message: "No quality venues found" });
+      return fail(res, 404, "No quality venues found");
     }
 
     // Convert places to VenueForAgent format for intelligent selection
@@ -577,7 +578,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
       .filter(p => p !== undefined);
 
     if (topVenues.length === 0) {
-      return res.status(404).json({ message: "No venues selected" });
+      return fail(res, 404, "No venues selected");
     }
 
     // Create activities from the top venues
@@ -687,7 +688,7 @@ router.post("/groups/:id/schedule-from-prompt", isAuthenticated, async (req: any
     });
   } catch (error: any) {
     console.error("[AI Scheduling] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -696,7 +697,7 @@ router.post("/groups/:id/analyze-patterns", isAuthenticated, requireGroupOwnersh
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Gather all feedback data
@@ -747,7 +748,7 @@ router.post("/groups/:id/analyze-patterns", isAuthenticated, requireGroupOwnersh
     res.json({ patterns });
   } catch (error: any) {
     console.error("[AI Insights] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -757,7 +758,7 @@ router.post("/groups/:id/swipe-concepts", isAuthenticated, requireGroupOwnership
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Get previously seen concepts to avoid repeats
@@ -781,7 +782,7 @@ router.post("/groups/:id/swipe-concepts", isAuthenticated, requireGroupOwnership
     res.json({ concepts });
   } catch (error: any) {
     console.error("Error generating swipe concepts:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -795,12 +796,12 @@ router.post("/groups/:groupId/discover-venues", isAuthenticated, async (req: any
     // Verify user has access to this group
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     // Parse request body (optional category filter)
@@ -1052,11 +1053,11 @@ router.post("/groups/:id/swipe-feedback", isAuthenticated, requireGroupOwnership
     const { conceptType, conceptDescription, feedback } = req.body;
 
     if (!conceptType || !conceptDescription || !feedback) {
-      return res.status(400).json({ message: "Missing required fields" });
+      return fail(res, 400, "Missing required fields");
     }
 
     if (feedback !== 'like' && feedback !== 'pass') {
-      return res.status(400).json({ message: "Feedback must be 'like' or 'pass'" });
+      return fail(res, 400, "Feedback must be 'like' or 'pass'");
     }
 
     const signal = await storage.createPreferenceSignal({
@@ -1071,7 +1072,7 @@ router.post("/groups/:id/swipe-feedback", isAuthenticated, requireGroupOwnership
     res.json({ signal });
   } catch (error: any) {
     console.error("Error saving swipe feedback:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1084,7 +1085,7 @@ router.get("/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
     // Get group settings for category filtering
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Get all voting events for this group with vote data
@@ -1305,7 +1306,7 @@ router.get("/groups/:id/swipe-deck", isAuthenticated, async (req: any, res) => {
     res.json({ deck: shuffledDeck });
   } catch (error: any) {
     console.error("Error generating swipe deck:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1397,7 +1398,7 @@ router.post("/groups/:groupId/nearby-suggestions", isAuthenticated, requireGroup
     res.json({ suggestions });
   } catch (error: any) {
     console.error("Error fetching nearby suggestions:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1441,7 +1442,7 @@ router.post("/groups/:groupId/venue-nearby-suggestions", async (req, res) => {
     res.json({ suggestions });
   } catch (error: any) {
     console.error("Error fetching venue nearby suggestions:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1454,17 +1455,17 @@ router.post("/itineraries/:id/ai-suggestions", isAuthenticated, requireItinerary
     // Get the itinerary
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Need group context for AI suggestions
     if (!itinerary.groupId) {
-      return res.status(400).json({ message: "AI suggestions require group context" });
+      return fail(res, 400, "AI suggestions require group context");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Import scoring utilities
@@ -1630,7 +1631,7 @@ router.post("/itineraries/:id/ai-suggestions", isAuthenticated, requireItinerary
     res.json(result);
   } catch (error: any) {
     console.error("[AI Suggestions] Error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to get AI suggestions") });
+    fail(res, 500, safeError(error, "Failed to get AI suggestions"));
   }
 });
 
@@ -1762,13 +1763,13 @@ router.post("/itineraries/:id/decide-now", isAuthenticated, requireItineraryAcce
     // Get the itinerary
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get the group
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Use the existing auto-scheduler logic to select best venues
@@ -1903,12 +1904,12 @@ router.post("/itineraries/:id/suggest-time", isAuthenticated, async (req, res) =
   try {
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Get member constraints if any
@@ -1959,7 +1960,7 @@ router.post("/itineraries/:id/suggest-time", isAuthenticated, async (req, res) =
     res.json(result);
   } catch (error: any) {
     console.error('[Suggest Time] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1968,13 +1969,13 @@ router.get("/itineraries/:id/suggested-schedule", isAuthenticated, async (req, r
   try {
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get group info for member count
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const members = await storage.getGroupMembers(itinerary.groupId);
@@ -1993,7 +1994,7 @@ router.get("/itineraries/:id/suggested-schedule", isAuthenticated, async (req, r
 
     res.json(scheduleConfig);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

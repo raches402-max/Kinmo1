@@ -7,7 +7,7 @@
  *   GET    /api/admin/ai-stats
  *   POST   /api/admin/calibrate-all
  *   POST   /api/admin/backfill-coordinates
- *   GET    /api/admin/stats
+ *  GET    /api/admin/stats
  *   GET    /api/admin/job-health
  *   POST   /api/admin/create-backup
  *   GET    /api/admin/backups
@@ -40,6 +40,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { eq, sql, and, or, gte, desc } from "drizzle-orm";
 import { isAuthenticated, } from "../googleAuth";
+import { fail } from "../lib/responses";
 import {
   requireAdmin,
   getUserId,
@@ -69,7 +70,7 @@ async function requireAdminAccess(req: any, res: any): Promise<string | null> {
   const user = await storage.getUser(userId);
   const adminEmails = getAdminEmails();
   if (!user || !adminEmails.includes(user.email || '')) {
-    res.status(403).json({ message: "Unauthorized: Admin access required" });
+    fail(res, 403, "Unauthorized: Admin access required");
     return null;
   }
   return userId;
@@ -179,7 +180,7 @@ router.post('/admin/import-venues', isAuthenticated, requireAdmin(), async (req,
     });
   } catch (error) {
     console.error("[Venue Import] Error:", error);
-    res.status(500).json({ message: "Failed to import venues" });
+    fail(res, 500, "Failed to import venues");
   }
 });
 
@@ -212,7 +213,7 @@ router.get("/admin/ai-stats", isAuthenticated, requireAdmin(), async (req, res) 
     });
   } catch (error: any) {
     console.error("[AI Stats] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -224,7 +225,7 @@ router.post("/admin/calibrate-all", isAuthenticated, async (req: any, res) => {
     res.json({ totalGroups: results.length, results });
   } catch (error: any) {
     console.error('Error running calibration:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -262,7 +263,7 @@ router.post("/admin/backfill-coordinates", isAuthenticated, requireAdmin(), asyn
     });
   } catch (error: any) {
     console.error("Error backfilling coordinates:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -277,7 +278,7 @@ router.get("/admin/stats", isAuthenticated, async (req: any, res) => {
     res.json(stats);
   } catch (error: any) {
     console.error("Error fetching admin stats:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -305,7 +306,7 @@ router.get("/admin/job-health", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching job health:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -331,7 +332,7 @@ router.post("/admin/create-backup", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error creating backup:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -354,7 +355,7 @@ router.get("/admin/backups", isAuthenticated, async (req: any, res) => {
     res.json(backupsList);
   } catch (error: any) {
     console.error("Error fetching backups:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -370,7 +371,7 @@ router.post("/admin/restore/:backupId", isAuthenticated, async (req: any, res) =
     res.json({ message: "Database restored successfully" });
   } catch (error: any) {
     console.error("Error restoring backup:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -384,7 +385,7 @@ router.get("/admin/test-accounts", isAuthenticated, async (req: any, res) => {
     res.json(testAccounts);
   } catch (error: any) {
     console.error("Error fetching test accounts:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -400,12 +401,12 @@ router.post("/admin/switch-user", isAuthenticated, async (req: any, res) => {
     const { targetUserId } = validatedData;
     const targetUser = await storage.getUser(targetUserId);
     if (!targetUser) {
-      return res.status(404).json({ message: "Target user not found" });
+      return fail(res, 404, "Target user not found");
     }
 
     const isTestAccount = targetUser.email?.includes('@example.com') || targetUser.email?.includes('@test.com');
     if (!isTestAccount) {
-      return res.status(403).json({ message: "Can only switch to test accounts" });
+      return fail(res, 403, "Can only switch to test accounts");
     }
 
     req.user.claims.sub = targetUserId;
@@ -414,7 +415,7 @@ router.post("/admin/switch-user", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, user: targetUser });
   } catch (error: any) {
     console.error("Error switching user:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -426,7 +427,7 @@ router.post("/admin/cache-photos", isAuthenticated, async (req: any, res) => {
 
     const apiKey = process.env.GOOGLE_PLACES_API_KEY_2;
     if (!apiKey) {
-      return res.status(500).json({ message: "GOOGLE_PLACES_API_KEY_2 not configured" });
+      return fail(res, 500, "GOOGLE_PLACES_API_KEY_2 not configured");
     }
 
     const uncachedActivities = await db
@@ -510,7 +511,7 @@ router.post("/admin/cache-photos", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error in photo caching migration:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -581,7 +582,7 @@ router.post("/admin/backfill-favorites-coordinates", isAuthenticated, async (req
     });
   } catch (error: any) {
     console.error("Error backfilling favorites coordinates:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -627,7 +628,7 @@ router.post("/admin/audit-venue-data", isAuthenticated, async (req: any, res) =>
     });
   } catch (error: any) {
     console.error("Error auditing venue data:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -753,7 +754,7 @@ router.post("/admin/cleanup-curated-venues", isAuthenticated, async (req: any, r
     });
   } catch (error: any) {
     console.error("Error cleaning up curated venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -773,7 +774,7 @@ router.get("/admin/deleted-venues", isAuthenticated, async (req: any, res) => {
     res.json({ success: true, deletedVenues: deleted });
   } catch (error: any) {
     console.error("Error fetching deleted venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -792,7 +793,7 @@ router.post("/admin/cleanup-orphaned-voting-data", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("Error cleaning up orphaned voting data:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -805,7 +806,7 @@ router.delete("/admin/groups/:id", isAuthenticated, async (req: any, res) => {
     const groupId = req.params.id;
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const user = await storage.getUser(userId);
@@ -818,7 +819,7 @@ router.delete("/admin/groups/:id", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error deleting group:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -882,7 +883,7 @@ router.post("/admin/recategorize-venues", isAuthenticated, async (req: any, res)
     });
   } catch (error: any) {
     console.error("Error recategorizing venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -894,7 +895,7 @@ router.post("/admin/scraped-venues/upload", isAuthenticated, async (req: any, re
 
     const { venues } = req.body;
     if (!Array.isArray(venues) || venues.length === 0) {
-      return res.status(400).json({ message: "Invalid request: venues array required" });
+      return fail(res, 400, "Invalid request: venues array required");
     }
 
     await storage.clearScrapedImport();
@@ -903,7 +904,7 @@ router.post("/admin/scraped-venues/upload", isAuthenticated, async (req: any, re
     res.json({ success: true, message: `Uploaded ${venues.length} scraped venues for comparison`, count: venues.length });
   } catch (error: any) {
     console.error("Error uploading scraped venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -917,7 +918,7 @@ router.get("/admin/scraped-venues/comparison", isAuthenticated, async (req: any,
     res.json({ success: true, ...comparison });
   } catch (error: any) {
     console.error("Error getting scraped venues comparison:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -931,7 +932,7 @@ router.delete("/admin/scraped-venues/clear", isAuthenticated, async (req: any, r
     res.json({ success: true, message: "Cleared all scraped venues" });
   } catch (error: any) {
     console.error("Error clearing scraped venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -943,14 +944,14 @@ router.post("/admin/scraped-venues/import", isAuthenticated, async (req: any, re
 
     const { venues } = req.body;
     if (!Array.isArray(venues)) {
-      return res.status(400).json({ message: "venues must be an array" });
+      return fail(res, 400, "venues must be an array");
     }
 
     const imported = await storage.importScrapedVenues(venues);
     res.json({ success: true, imported });
   } catch (error: any) {
     console.error("Error importing scraped venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1001,7 +1002,7 @@ router.get("/admin/venue-analytics", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching venue analytics:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1013,7 +1014,7 @@ router.get("/admin/venues-by-filter", isAuthenticated, async (req: any, res) => 
 
     const { region, category } = req.query;
     if (!region || !category) {
-      return res.status(400).json({ message: "Missing region or category parameter" });
+      return fail(res, 400, "Missing region or category parameter");
     }
 
     const venues = await db
@@ -1047,7 +1048,7 @@ router.get("/admin/venues-by-filter", isAuthenticated, async (req: any, res) => 
     });
   } catch (error: any) {
     console.error("Error fetching filtered venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1083,7 +1084,7 @@ router.get("/admin/api-logs", isAuthenticated, async (req: any, res) => {
     res.json({ logs, total, limit: limitNum, offset: offsetNum });
   } catch (error: any) {
     console.error("Error fetching API logs:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1198,7 +1199,7 @@ router.get("/admin/api-costs", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching API costs:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

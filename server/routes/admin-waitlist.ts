@@ -5,7 +5,7 @@
  *   POST   /api/admin/waitlist/:id/approve    — approve + add to allowlist
  *   POST   /api/admin/waitlist/:id/reject     — mark rejected
  *
- *   GET    /api/admin/invite-codes            — list codes with usage
+ *   GET    /api/admin/invite-codes   — list codes with usage
  *   POST   /api/admin/invite-codes            — create new code
  *   PATCH  /api/admin/invite-codes/:code      — update label/maxUses/isActive
  *
@@ -21,6 +21,7 @@ import { eq, desc } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import { requireAdmin } from "../authorization";
 import { allowedEmails, inviteCodes, waitlistSignups } from "@shared/schema";
+import { fail } from "../lib/responses";
 
 export const adminWaitlistRouter = Router();
 
@@ -51,7 +52,7 @@ adminWaitlistRouter.post(
       .where(eq(waitlistSignups.id, id))
       .limit(1);
     if (!signup) {
-      return res.status(404).json({ message: "Signup not found" });
+      return fail(res, 404, "Signup not found");
     }
 
     const email = signup.email.toLowerCase();
@@ -81,7 +82,7 @@ adminWaitlistRouter.post(
       .where(eq(waitlistSignups.id, id))
       .returning({ id: waitlistSignups.id });
     if (result.length === 0) {
-      return res.status(404).json({ message: "Signup not found" });
+      return fail(res, 404, "Signup not found");
     }
     res.json({ ok: true });
   },
@@ -116,7 +117,7 @@ adminWaitlistRouter.post(
   async (req, res) => {
     const parsed = createCodeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ message: "Invalid input", errors: parsed.error.errors });
+      return fail(res, 400, "Invalid input", { errors: parsed.error.errors });
     }
     const code = parsed.data.code.trim().toLowerCase();
     try {
@@ -132,7 +133,7 @@ adminWaitlistRouter.post(
       res.json({ ok: true, code: created });
     } catch (err: any) {
       if (err?.code === "23505") {
-        return res.status(409).json({ message: "Code already exists" });
+        return fail(res, 409, "Code already exists");
       }
       throw err;
     }
@@ -154,7 +155,7 @@ adminWaitlistRouter.patch(
     const code = req.params.code.toLowerCase();
     const parsed = updateCodeSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ message: "Invalid input" });
+      return fail(res, 400, "Invalid input");
     }
     const updates: any = {};
     if (parsed.data.label !== undefined) updates.label = parsed.data.label;
@@ -164,7 +165,7 @@ adminWaitlistRouter.patch(
       updates.expiresAt = parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null;
     }
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ message: "No updates provided" });
+      return fail(res, 400, "No updates provided");
     }
     const [updated] = await db
       .update(inviteCodes)
@@ -172,7 +173,7 @@ adminWaitlistRouter.patch(
       .where(eq(inviteCodes.code, code))
       .returning();
     if (!updated) {
-      return res.status(404).json({ message: "Code not found" });
+      return fail(res, 404, "Code not found");
     }
     res.json({ ok: true, code: updated });
   },
@@ -204,7 +205,7 @@ adminWaitlistRouter.post(
   async (req, res) => {
     const parsed = addEmailSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ message: "Invalid email" });
+      return fail(res, 400, "Invalid email");
     }
     const email = parsed.data.email.trim().toLowerCase();
     await db
@@ -226,7 +227,7 @@ adminWaitlistRouter.delete(
       .where(eq(allowedEmails.email, email))
       .returning({ email: allowedEmails.email });
     if (result.length === 0) {
-      return res.status(404).json({ message: "Email not found" });
+      return fail(res, 404, "Email not found");
     }
     res.json({ ok: true });
   },

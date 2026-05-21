@@ -22,6 +22,7 @@ import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
 import { updateMemberSchema } from "@shared/schema";
+import { fail } from "../lib/responses";
 import {
   members as membersTable,
   users,
@@ -111,7 +112,7 @@ router.get("/groups/:id/members", publicEndpointLimiter, async (req, res) => {
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const allMembers = group.userId
@@ -133,7 +134,7 @@ router.get("/groups/:id/members", publicEndpointLimiter, async (req, res) => {
 
     res.json(safeMembers);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -143,7 +144,7 @@ router.get("/members/:id", publicEndpointLimiter, async (req: any, res) => {
   try {
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     let authenticatedUserId: string | null = null;
@@ -174,7 +175,7 @@ router.get("/members/:id", publicEndpointLimiter, async (req: any, res) => {
 
     res.json(safeMember);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -186,26 +187,26 @@ router.patch("/members/:id", isAuthenticated, async (req: any, res) => {
 
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     const group = await storage.getGroup(member.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const isGroupOwner = group.userId === userId;
     const isMemberOwner = member.userId === userId;
 
     if (!isGroupOwner && !isMemberOwner) {
-      return res.status(403).json({ message: "Not authorized to update this member" });
+      return fail(res, 403, "Not authorized to update this member");
     }
 
     const validatedUpdates = updateMemberSchema.parse(req.body);
     const updatedMember = await storage.updateMember(req.params.id, validatedUpdates);
     res.json(updatedMember);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -217,12 +218,12 @@ router.delete("/members/:id", isAuthenticated, async (req: any, res) => {
     const member = await storage.getMember(req.params.id);
 
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     const group = await storage.getGroup(member.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Forbidden: You don't have access to this member" });
+      return fail(res, 403, "Forbidden: You don't have access to this member");
     }
 
     await storage.deleteMember(req.params.id);
@@ -242,11 +243,11 @@ router.delete("/groups/:groupId/members/:memberId", isAuthenticated, async (req:
 
     const member = await storage.getMember(memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId !== userId || member.groupId !== groupId) {
-      return res.status(403).json({ message: "Not authorized to remove this member" });
+      return fail(res, 403, "Not authorized to remove this member");
     }
 
     if (member.isOrganizer) {
@@ -258,7 +259,7 @@ router.delete("/groups/:groupId/members/:memberId", isAuthenticated, async (req:
     await storage.deleteMember(memberId);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

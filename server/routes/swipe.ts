@@ -7,7 +7,7 @@
  *   GET    /api/groups/:groupId/swipe-sessions                     — get active sessions
  *   GET    /api/swipe-sessions/:sessionId                          — get session result
  *   POST   /api/swipe-sessions/:sessionId/complete                 — manually complete session
- *   POST   /api/groups/:groupId/activities/:activityId/swipe       — swipe on activity
+ *   POST/api/groups/:groupId/activities/:activityId/swipe       — swipe on activity
  *   POST   /api/groups/:groupId/favorites/:votingEventId/swipe     — swipe on voting event
  *   GET    /api/groups/:groupId/swipe-progress                     — get swipe progress
  *   GET    /api/groups/:groupId/swipe-triggers/status              — check trigger opportunities
@@ -28,6 +28,7 @@ import { getUserId } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { z } from "zod";
 import { activities, votingEvents, swipeSessions, activitySwipes } from "@shared/schema";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.post("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any,
     // Verify user is a member or organizer
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     // Validate request body
@@ -81,7 +82,7 @@ router.post("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any,
     res.json({ sessionId });
   } catch (error: any) {
     console.error("Error creating swipe session:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -94,7 +95,7 @@ router.get("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, 
     // Verify user is a member
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     // Get active sessions
@@ -104,7 +105,7 @@ router.get("/groups/:groupId/swipe-sessions", isAuthenticated, async (req: any, 
     res.json({ sessions });
   } catch (error: any) {
     console.error("Error fetching swipe sessions:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -119,7 +120,7 @@ router.get("/swipe-sessions/:sessionId", isAuthenticated, async (req: any, res) 
     const session = await getSwipeSessionResult(sessionId);
 
     if (!session) {
-      return res.status(404).json({ message: "Swipe session not found" });
+      return fail(res, 404, "Swipe session not found");
     }
 
     // Verify user is member of this group
@@ -130,18 +131,18 @@ router.get("/swipe-sessions/:sessionId", isAuthenticated, async (req: any, res) 
       .limit(1);
 
     if (sessionData.length === 0) {
-      return res.status(404).json({ message: "Session not found" });
+      return fail(res, 404, "Session not found");
     }
 
     const member = await storage.getGroupMemberByUserId(sessionData[0].groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     res.json(session);
   } catch (error: any) {
     console.error("Error fetching swipe session:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -159,13 +160,13 @@ router.post("/swipe-sessions/:sessionId/complete", isAuthenticated, async (req: 
       .limit(1);
 
     if (sessionData.length === 0) {
-      return res.status(404).json({ message: "Session not found" });
+      return fail(res, 404, "Session not found");
     }
 
     // Verify user is organizer (group owner)
     const group = await storage.getGroup(sessionData[0].groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only organizers can manually complete sessions" });
+      return fail(res, 403, "Only organizers can manually complete sessions");
     }
 
     // Complete session
@@ -178,7 +179,7 @@ router.post("/swipe-sessions/:sessionId/complete", isAuthenticated, async (req: 
     res.json(result);
   } catch (error: any) {
     console.error("Error completing swipe session:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -212,13 +213,13 @@ router.post(
         .limit(1);
 
       if (!activity || activity.length === 0) {
-        return res.status(404).json({ message: "Activity not found" });
+        return fail(res, 404, "Activity not found");
       }
 
       // Get member for this user in this group
       const member = await storage.getGroupMemberByUserId(groupId, userId);
       if (!member) {
-        return res.status(403).json({ message: "Not a member of this group" });
+        return fail(res, 403, "Not a member of this group");
       }
 
       // Check if user already swiped on this activity
@@ -226,7 +227,7 @@ router.post(
       const alreadySwiped = await hasUserSwipedActivity(userId, activityId);
 
       if (alreadySwiped) {
-        return res.status(400).json({ message: "You've already swiped on this activity" });
+        return fail(res, 400, "You've already swiped on this activity");
       }
 
       // Record the swipe
@@ -290,7 +291,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error recording activity swipe:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -323,13 +324,13 @@ router.post(
         .limit(1);
 
       if (!votingEvent || votingEvent.length === 0) {
-        return res.status(404).json({ message: "Favorite not found" });
+        return fail(res, 404, "Favorite not found");
       }
 
       // Get member for this user in this group
       const member = await storage.getGroupMemberByUserId(groupId, userId);
       if (!member) {
-        return res.status(403).json({ message: "Not a member of this group" });
+        return fail(res, 403, "Not a member of this group");
       }
 
       // Check if user already swiped on this voting event
@@ -337,7 +338,7 @@ router.post(
       const alreadySwiped = await hasUserSwipedVotingEvent(userId, votingEventId);
 
       if (alreadySwiped) {
-        return res.status(400).json({ message: "You've already swiped on this favorite" });
+        return fail(res, 400, "You've already swiped on this favorite");
       }
 
       // Record the swipe
@@ -384,7 +385,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error recording favorite swipe:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -398,12 +399,12 @@ router.get("/groups/:groupId/swipe-progress", isAuthenticated, async (req: any, 
     // Verify user has access to this group
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member && group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this group" });
+      return fail(res, 403, "Not authorized to view this group");
     }
 
     // Get swipe progress
@@ -413,7 +414,7 @@ router.get("/groups/:groupId/swipe-progress", isAuthenticated, async (req: any, 
     res.json(progress);
   } catch (error: any) {
     console.error("Error fetching swipe progress:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -426,12 +427,12 @@ router.get("/groups/:groupId/swipe-triggers/status", isAuthenticated, async (req
     // Verify user has access to this group
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member && group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this group" });
+      return fail(res, 403, "Not authorized to view this group");
     }
 
     // Check all trigger opportunities
@@ -441,7 +442,7 @@ router.get("/groups/:groupId/swipe-triggers/status", isAuthenticated, async (req
     res.json(opportunities);
   } catch (error: any) {
     console.error("Error checking swipe triggers:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -495,7 +496,7 @@ router.post("/groups/:groupId/swipe-triggers/manual", isAuthenticated, async (re
     }
   } catch (error: any) {
     console.error("Error triggering manual swipe session:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -537,7 +538,7 @@ router.post(
       }
     } catch (error: any) {
       console.error("Error triggering weekly digest:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -549,12 +550,12 @@ router.post("/cron/weekly-digest", async (req, res) => {
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) {
       console.error("CRON_SECRET environment variable not configured");
-      return res.status(500).json({ message: "Server configuration error" });
+      return fail(res, 500, "Server configuration error");
     }
     const providedSecret = req.headers["x-cron-secret"] || req.query.secret;
 
     if (providedSecret !== cronSecret) {
-      return res.status(401).json({ message: "Unauthorized" });
+      return fail(res, 401, "Unauthorized");
     }
 
     // Process weekly digests for all groups
@@ -564,7 +565,7 @@ router.post("/cron/weekly-digest", async (req, res) => {
     res.json({ success: true, message: "Weekly digests processed" });
   } catch (error: any) {
     console.error("Error processing weekly digests:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

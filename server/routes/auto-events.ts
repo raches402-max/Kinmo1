@@ -21,6 +21,7 @@ import { eq, and } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
+import { fail } from "../lib/responses";
 import {
   groups as groupsTable,
   rejectedEventDates,
@@ -41,26 +42,26 @@ router.post("/auto-events/:id/approve", isAuthenticated, async (req: any, res) =
       .where(eq(autoScheduledEvents.id, req.params.id));
 
     if (!event) {
-      return res.status(404).json({ message: "Auto-scheduled event not found" });
+      return fail(res, 404, "Auto-scheduled event not found");
     }
 
     const group = await storage.getGroup(event.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Check ownership
     if (group.userId !== req.user.id) {
-      return res.status(403).json({ message: "Only the group owner can approve events" });
+      return fail(res, 403, "Only the group owner can approve events");
     }
 
     if (!event.itineraryId) {
-      return res.status(400).json({ message: "Event has no itinerary" });
+      return fail(res, 400, "Event has no itinerary");
     }
 
     const itinerary = await storage.getItinerary(event.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Update itinerary to proposed status using adaptive timeline
@@ -106,7 +107,7 @@ router.post("/auto-events/:id/approve", isAuthenticated, async (req: any, res) =
     res.json({ message: "Event approved and sent", event, itinerary });
   } catch (error: any) {
     console.error("Error approving event:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -119,13 +120,13 @@ router.post("/auto-events/:id/skip", isAuthenticated, async (req: any, res) => {
     // Get the event to verify ownership
     const event = await storage.getAutoScheduledEvent(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Auto-scheduled event not found" });
+      return fail(res, 404, "Auto-scheduled event not found");
     }
 
     // Verify user owns the group
     const group = await storage.getGroup(event.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Forbidden: You don't own this group" });
+      return fail(res, 403, "Forbidden: You don't own this group");
     }
 
     // Skip the event (marks as rejected)
@@ -148,7 +149,7 @@ router.post("/auto-events/:id/skip", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Auto-Event Skip] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -161,13 +162,13 @@ router.delete("/auto-events/:id", isAuthenticated, async (req: any, res) => {
     // Get the event to verify ownership
     const event = await storage.getAutoScheduledEvent(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Auto-scheduled event not found" });
+      return fail(res, 404, "Auto-scheduled event not found");
     }
 
     // Verify user owns the group
     const group = await storage.getGroup(event.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Forbidden: You don't own this group" });
+      return fail(res, 403, "Forbidden: You don't own this group");
     }
 
     // Track rejected date if the event has a proposed date
@@ -198,7 +199,7 @@ router.delete("/auto-events/:id", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Auto-Event Delete] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -213,13 +214,13 @@ router.get("/auto-events/:eventId/options", isAuthenticated, async (req: any, re
     // Get the auto event
     const event = await storage.getAutoScheduledEvent(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     // Verify user has access to the group
     const group = await storage.getGroup(event.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const isOwner = group.userId === userId;
@@ -227,7 +228,7 @@ router.get("/auto-events/:eventId/options", isAuthenticated, async (req: any, re
     const isMember = members.some((m) => m.userId === userId);
 
     if (!isOwner && !isMember) {
-      return res.status(403).json({ message: "Not authorized" });
+      return fail(res, 403, "Not authorized");
     }
 
     // Get the options
@@ -261,7 +262,7 @@ router.get("/auto-events/:eventId/options", isAuthenticated, async (req: any, re
     });
   } catch (error: any) {
     console.error("[Get Itinerary Options] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -273,25 +274,25 @@ router.post("/auto-events/:eventId/vote", isAuthenticated, async (req: any, res)
     const userId = await getUserId(req);
 
     if (!optionId) {
-      return res.status(400).json({ message: "Option ID is required" });
+      return fail(res, 400, "Option ID is required");
     }
 
     // Get the auto event
     const event = await storage.getAutoScheduledEvent(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     // Check if voting is enabled
     if (!event.allowMemberVoting) {
-      return res.status(403).json({ message: "Voting is not enabled for this event" });
+      return fail(res, 403, "Voting is not enabled for this event");
     }
 
     // Verify user is a member
     const members = await storage.getGroupMembers(event.groupId);
     const member = members.find((m) => m.userId === userId);
     if (!member) {
-      return res.status(403).json({ message: "Only group members can vote" });
+      return fail(res, 403, "Only group members can vote");
     }
 
     // Verify option exists and belongs to this event
@@ -304,7 +305,7 @@ router.post("/auto-events/:eventId/vote", isAuthenticated, async (req: any, res)
       .where(eq(itineraryOptionsTable.id, optionId));
 
     if (!option || option.autoEventId !== eventId) {
-      return res.status(404).json({ message: "Invalid option" });
+      return fail(res, 404, "Invalid option");
     }
 
     // Remove any existing vote from this member for this event
@@ -328,7 +329,7 @@ router.post("/auto-events/:eventId/vote", isAuthenticated, async (req: any, res)
     res.json({ success: true, message: "Vote recorded" });
   } catch (error: any) {
     console.error("[Vote for Option] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -340,22 +341,22 @@ router.post("/auto-events/:eventId/select-option", isAuthenticated, async (req: 
     const userId = await getUserId(req);
 
     if (!optionId) {
-      return res.status(400).json({ message: "Option ID is required" });
+      return fail(res, 400, "Option ID is required");
     }
 
     // Get the auto event
     const event = await storage.getAutoScheduledEvent(eventId);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     // Verify user is the group owner
     const group = await storage.getGroup(event.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group owner can select an option" });
+      return fail(res, 403, "Only the group owner can select an option");
     }
 
     // Use the shared approval logic
@@ -363,7 +364,7 @@ router.post("/auto-events/:eventId/select-option", isAuthenticated, async (req: 
     const result = await approveAndCreateItinerary(eventId, optionId, "manual");
 
     if (!result.success) {
-      return res.status(400).json({ message: result.error || "Failed to approve option" });
+      return fail(res, 400, result.error || "Failed to approve option");
     }
 
     res.json({
@@ -373,7 +374,7 @@ router.post("/auto-events/:eventId/select-option", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("[Select Option] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -389,13 +390,13 @@ router.post(
       // Get the auto event
       const event = await storage.getAutoScheduledEvent(eventId);
       if (!event) {
-        return res.status(404).json({ message: "Event not found" });
+        return fail(res, 404, "Event not found");
       }
 
       // Verify user is the group owner
       const group = await storage.getGroup(event.groupId);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
       if (group.userId !== userId) {
         return res
@@ -434,7 +435,7 @@ router.post(
       const result = await selectBestItineraryForAutoSchedule(storage, group);
 
       if (!result.options || result.options.length === 0) {
-        return res.status(500).json({ message: "Failed to generate new options" });
+        return fail(res, 500, "Failed to generate new options");
       }
 
       // Save new options
@@ -472,7 +473,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[Regenerate Options] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );

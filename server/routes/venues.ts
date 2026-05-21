@@ -32,6 +32,7 @@ import { getUserId, requireGroupAccess } from "../authorization";
 import { searchPlaces, getPlaceDetails } from "../google-places";
 import { safeParse } from "../validation-middleware";
 import { suggestAlternativesSchema } from "../validation-schemas";
+import { fail } from "../lib/responses";
 import {
   curatedVenues,
   votingEvents,
@@ -50,7 +51,7 @@ router.get("/venues/search", isAuthenticated, async (req: any, res) => {
     const { query, location } = req.query;
 
     if (!query || typeof query !== "string") {
-      return res.status(400).json({ message: "Query parameter required" });
+      return fail(res, 400, "Query parameter required");
     }
 
     const searchLocation =
@@ -82,7 +83,7 @@ router.get("/venues/search", isAuthenticated, async (req: any, res) => {
     res.json({ results: suggestions });
   } catch (error: any) {
     console.error("[Venue Search] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -158,7 +159,7 @@ router.post("/venues/suggest-alternatives", isAuthenticated, async (req: any, re
     res.json({ suggestions });
   } catch (error: any) {
     console.error("[AI Venue Suggestions] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -211,7 +212,7 @@ router.get("/places/search", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Places Search] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -228,7 +229,7 @@ router.get("/groups/:groupId/search-venues", async (req, res) => {
 
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const results = await searchPlaces(
@@ -259,7 +260,7 @@ router.get("/groups/:groupId/search-venues", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Error searching venues:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -294,7 +295,7 @@ router.get("/curated-venues", isAuthenticated, async (req: any, res) => {
     res.json(venues);
   } catch (error: any) {
     console.error("[Curated Venues] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -310,7 +311,7 @@ router.post(
       const { googlePlaceId } = req.params;
 
       if (!googlePlaceId) {
-        return res.status(400).json({ message: "Google Place ID is required" });
+        return fail(res, 400, "Google Place ID is required");
       }
 
       const placeDetails = await getPlaceDetails(googlePlaceId);
@@ -367,7 +368,7 @@ router.post(
       });
     } catch (error: any) {
       console.error("[Photo Refresh] Error:", error);
-      res.status(500).json({ message: safeError(error, "Failed to refresh photo") });
+      fail(res, 500, safeError(error, "Failed to refresh photo"));
     }
   }
 );
@@ -457,7 +458,7 @@ router.get("/user/all-places", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("[Get All Places] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -539,7 +540,7 @@ router.get("/user/places-swipe-queue", isAuthenticated, async (req: any, res) =>
     });
   } catch (error: any) {
     console.error("[Places Swipe Queue] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -557,7 +558,7 @@ router.get("/user/saved-places", isAuthenticated, async (req: any, res) => {
     res.json(places);
   } catch (error: any) {
     console.error("[Get User Saved Places] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -587,7 +588,7 @@ router.post("/user/saved-places", isAuthenticated, async (req: any, res) => {
 
     const alreadySaved = await storage.isUserSavedPlace(userId, googlePlaceId);
     if (alreadySaved) {
-      return res.status(400).json({ message: "Place already saved" });
+      return fail(res, 400, "Place already saved");
     }
 
     const place = await storage.addUserSavedPlace({
@@ -607,7 +608,7 @@ router.post("/user/saved-places", isAuthenticated, async (req: any, res) => {
     res.json(place);
   } catch (error: any) {
     console.error("[Add User Saved Place] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -625,7 +626,7 @@ router.delete(
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Remove User Saved Place] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -650,7 +651,7 @@ router.get(
       res.json(places);
     } catch (error: any) {
       console.error("[Get Group Saved Places] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -719,7 +720,7 @@ router.post(
       res.json(place);
     } catch (error: any) {
       console.error("[Add Group Saved Place] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -738,7 +739,7 @@ router.delete(
       res.json({ success: true });
     } catch (error: any) {
       console.error("[Remove Group Saved Place] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );

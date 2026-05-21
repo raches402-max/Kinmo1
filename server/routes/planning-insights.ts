@@ -16,6 +16,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -26,13 +27,13 @@ router.get("/groups/:id/planning-insights", isAuthenticated, async (req: any, re
 
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const members = await storage.getGroupMembers(groupId);
     const isMember = group.userId === userId || members.some(m => m.userId === userId);
     if (!isMember) {
-      return res.status(403).json({ message: "Access denied" });
+      return fail(res, 403, "Access denied");
     }
 
     const { getGroupInsights } = await import('../planning-agent');
@@ -41,7 +42,7 @@ router.get("/groups/:id/planning-insights", isAuthenticated, async (req: any, re
     res.json(insights);
   } catch (error: any) {
     console.error("Error fetching planning insights:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -56,7 +57,7 @@ router.post("/planning-insights/:id/dismiss", isAuthenticated, async (req: any, 
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error dismissing insight:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -71,7 +72,7 @@ router.post("/planning-insights/:id/acted", isAuthenticated, async (req: any, re
     res.json({ success: true });
   } catch (error: any) {
     console.error("Error marking insight as acted:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -82,7 +83,7 @@ router.post("/groups/:id/analyze", isAuthenticated, async (req: any, res) => {
 
     const group = await storage.getGroup(groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only group owner can trigger analysis" });
+      return fail(res, 403, "Only group owner can trigger analysis");
     }
 
     const { analyzeGroup } = await import('../planning-agent');
@@ -97,7 +98,7 @@ router.post("/groups/:id/analyze", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error running planning agent:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

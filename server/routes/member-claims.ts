@@ -5,7 +5,7 @@
  * link accounts, and get member events.
  *
  *   GET    /members/claim/verify/:claimToken  — verify claim token (public)
- *   POST   /members/claim                     — claim membership (authenticated)
+ *   POST   /members/claim                    — claim membership (authenticated)
  *   POST   /members/register-guest            — register as guest (public)
  *   POST   /members/link-account              — link account to member (authenticated)
  *   GET    /members/me/events                 — get member's events (auth or claim token)
@@ -20,6 +20,7 @@ import { eq, sql } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
+import { fail } from "../lib/responses";
 import {
   members as membersTable,
   itineraryInvites,
@@ -53,7 +54,7 @@ router.get("/members/claim/verify/:claimToken", async (req, res) => {
     const { claimToken } = req.params;
 
     if (!claimToken) {
-      return res.status(400).json({ message: "Claim token required" });
+      return fail(res, 400, "Claim token required");
     }
 
     const members = await db
@@ -69,14 +70,14 @@ router.get("/members/claim/verify/:claimToken", async (req, res) => {
       .where(sql`claim_token = ${claimToken}`);
 
     if (members.length === 0) {
-      return res.status(404).json({ message: "Invalid or expired claim token" });
+      return fail(res, 404, "Invalid or expired claim token");
     }
 
     const member = members[0];
 
     const group = await storage.getGroup(member.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const alreadyClaimed = !!member.userId && !!member.claimedAt;
@@ -91,7 +92,7 @@ router.get("/members/claim/verify/:claimToken", async (req, res) => {
     });
   } catch (error: any) {
     console.error('[Verify Claim Token] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -101,7 +102,7 @@ router.post("/members/claim", isAuthenticated, async (req: any, res) => {
     const userId = await getUserId(req);
 
     if (!claimToken) {
-      return res.status(400).json({ message: "Claim token required" });
+      return fail(res, 400, "Claim token required");
     }
 
     const members = await db
@@ -110,7 +111,7 @@ router.post("/members/claim", isAuthenticated, async (req: any, res) => {
       .where(sql`claim_token = ${claimToken}`);
 
     if (members.length === 0) {
-      return res.status(404).json({ message: "Invalid claim token" });
+      return fail(res, 404, "Invalid claim token");
     }
 
     const member = members[0];
@@ -140,7 +141,7 @@ router.post("/members/claim", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Claim Membership] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -149,11 +150,11 @@ router.post("/members/register-guest", async (req, res) => {
     const { claimToken, guestName } = req.body;
 
     if (!claimToken) {
-      return res.status(400).json({ message: "Claim token required" });
+      return fail(res, 400, "Claim token required");
     }
 
     if (!guestName || typeof guestName !== 'string' || guestName.trim().length < 1) {
-      return res.status(400).json({ message: "Guest name required" });
+      return fail(res, 400, "Guest name required");
     }
 
     const members = await db
@@ -165,7 +166,7 @@ router.post("/members/register-guest", async (req, res) => {
       .where(sql`claim_token = ${claimToken}`);
 
     if (members.length === 0) {
-      return res.status(404).json({ message: "Invalid or expired claim token" });
+      return fail(res, 404, "Invalid or expired claim token");
     }
 
     const member = members[0];
@@ -202,7 +203,7 @@ router.post("/members/register-guest", async (req, res) => {
     });
   } catch (error: any) {
     console.error('[Register Guest] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -212,12 +213,12 @@ router.post("/members/link-account", isAuthenticated, async (req: any, res) => {
     const userId = await getUserId(req);
 
     if (!memberId) {
-      return res.status(400).json({ message: "Member ID required" });
+      return fail(res, 400, "Member ID required");
     }
 
     const member = await storage.getMember(memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId && member.userId !== userId) {
@@ -247,7 +248,7 @@ router.post("/members/link-account", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Link Account] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -257,7 +258,7 @@ router.get("/members/me/events", async (req: any, res) => {
     const userId = await getUserId(req);
 
     if (!userId && !claimToken) {
-      return res.status(401).json({ message: "Authentication or claim token required" });
+      return fail(res, 401, "Authentication or claim token required");
     }
 
     let memberIds: string[] = [];
@@ -423,7 +424,7 @@ router.get("/members/me/events", async (req: any, res) => {
     });
   } catch (error: any) {
     console.error('[Get Member Events] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

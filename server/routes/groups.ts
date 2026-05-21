@@ -3,7 +3,7 @@
  *
  * Handles basic group lifecycle:
  *   POST   /api/groups            — create group
- *   GET    /api/groups/:id        — get group by ID
+ *   GET    /api/groups/:id        — get groupby ID
  *   PATCH  /api/groups/:id        — update group
  *   PATCH  /api/groups/:id/radius — update search radius
  *   DELETE /api/groups/:id        — delete group (organizer only)
@@ -16,6 +16,7 @@ import { safeError } from "../lib/safe-error";
 import { Router } from "express";
 import * as Sentry from "@sentry/node";
 import { storage } from "../storage";
+import { fail } from "../lib/responses";
 import {
   insertGroupSchema,
   updateGroupSchema,
@@ -56,7 +57,7 @@ router.get("/user/groups", isAuthenticated, async (req: any, res) => {
     const groups = await storage.getUserGroups(userId);
     res.json(groups);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -136,7 +137,7 @@ router.post("/groups", isAuthenticated, async (req: any, res) => {
     res.json(group);
   } catch (error: any) {
     console.error("Error creating group:", error);
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -145,7 +146,7 @@ router.post("/groups", isAuthenticated, async (req: any, res) => {
 router.get("/groups/:id", async (req, res) => {
   try {
     const group = await storage.getGroup(req.params.id);
-    if (!group) return res.status(404).json({ message: "Group not found" });
+    if (!group) return fail(res, 404, "Group not found");
 
     const members = await storage.getGroupMembers(req.params.id);
     const memberBudgets: number[] = [];
@@ -176,7 +177,7 @@ router.get("/groups/:id", async (req, res) => {
 
     res.json({ ...group, memberBudgetStats });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -234,7 +235,7 @@ router.patch("/groups/:id", isAuthenticated, requireGroupOwnership(), async (req
         : undefined,
     });
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -247,7 +248,7 @@ router.patch("/groups/:id/radius", isAuthenticated, requireGroupOwnership(), asy
     const updatedGroup = await storage.updateGroup(req.params.id, { searchRadius: validatedData.searchRadius });
     res.json(updatedGroup);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -258,7 +259,7 @@ router.delete("/groups/:id", isAuthenticated, requireGroupOwnership(), async (re
     await storage.softDeleteGroup(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

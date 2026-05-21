@@ -18,6 +18,7 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { insertVotingEventSchema } from "@shared/schema";
 import { isAuthenticated } from "../googleAuth";
+import { fail } from "../lib/responses";
 import {
   requireGroupOwnership,
   getUserId,
@@ -38,7 +39,7 @@ router.patch("/groups/:id/collection", isAuthenticated, async (req: any, res) =>
     // Verify user owns the group
     const group = await storage.getGroup(id);
     if (!group || group.userId !== userId) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // If collectionId is provided, verify user owns that collection too
@@ -46,14 +47,14 @@ router.patch("/groups/:id/collection", isAuthenticated, async (req: any, res) =>
       const collections = await storage.getUserGroupCollections(userId);
       const collection = collections.find(c => c.id === collectionId);
       if (!collection) {
-        return res.status(404).json({ message: "Collection not found" });
+        return fail(res, 404, "Collection not found");
       }
     }
 
     await storage.updateGroupCollectionAssignment(id, collectionId, orderIndex);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -70,13 +71,13 @@ router.patch("/groups/reorder", isAuthenticated, async (req: any, res) => {
     const allOwned = groupOrders.every((order: any) => userGroupIds.has(order.id));
 
     if (!allOwned) {
-      return res.status(403).json({ message: "You don't own all these groups" });
+      return fail(res, 403, "You don't own all these groups");
     }
 
     await storage.reorderGroupsInCollection(groupOrders);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -91,7 +92,7 @@ router.post("/voting-events", isAuthenticated, requireGroupOwnership(), async (r
     // Get the group to know the location for Google Places search
     const group = await storage.getGroup(validatedEvent.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Search Google Places to enrich the event with venue details
@@ -212,7 +213,7 @@ router.post("/voting-events", isAuthenticated, requireGroupOwnership(), async (r
     const event = await storage.createVotingEvent(enrichedEvent, userId, trustSource);
     res.json({ event, enrichmentStatus });
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -222,7 +223,7 @@ router.post("/groups/:id/quick-event", isAuthenticated, requireGroupOwnership(),
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const { eventType } = req.body;
@@ -365,7 +366,7 @@ router.post("/groups/:id/quick-event", isAuthenticated, requireGroupOwnership(),
     });
   } catch (error: any) {
     console.error("[Quick Event] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -375,13 +376,13 @@ router.get("/groups/:id/category-search-history", isAuthenticated, async (req: a
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Verify user owns this group
     const userId = await getUserId(req);
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to access this group" });
+      return fail(res, 403, "Not authorized to access this group");
     }
 
     const limit = parseInt(req.query.limit as string) || 5;
@@ -390,7 +391,7 @@ router.get("/groups/:id/category-search-history", isAuthenticated, async (req: a
     res.json(searches);
   } catch (error: any) {
     console.error("[Category Search History] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -400,19 +401,19 @@ router.post("/groups/:id/add-venues-to-library", isAuthenticated, async (req: an
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Verify user owns this group
     const userId = await getUserId(req);
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this group" });
+      return fail(res, 403, "Not authorized to modify this group");
     }
 
     const { category, searchLocation, searchRadius, selectedVenues } = req.body;
 
     if (!category || !selectedVenues || !Array.isArray(selectedVenues)) {
-      return res.status(400).json({ message: "Missing required fields: category, selectedVenues" });
+      return fail(res, 400, "Missing required fields: category, selectedVenues");
     }
 
     console.log(`[Add Venues] Saving ${selectedVenues.length} ${category} venues to activities for group ${req.params.id}`);
@@ -455,7 +456,7 @@ router.post("/groups/:id/add-venues-to-library", isAuthenticated, async (req: an
     });
   } catch (error: any) {
     console.error("[Add Venues] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -465,7 +466,7 @@ router.post("/groups/:id/send-invitations", isAuthenticated, requireGroupOwnersh
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const members = await storage.getGroupMembers(req.params.id);
@@ -505,7 +506,7 @@ Looking forward to planning great activities together!
       message: `Invitations logged for ${emailsSent.length} members. Check server console for details.`
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

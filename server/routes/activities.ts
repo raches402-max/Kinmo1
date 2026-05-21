@@ -24,6 +24,7 @@ import { storage } from "../storage";
 import { db } from "../db";
 import { eq, sql } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
+import { fail } from "../lib/responses";
 import {
   requireGroupOwnership,
   requireGroupAccess,
@@ -97,7 +98,7 @@ router.get("/groups/:id/activities", publicEndpointLimiter, async (req, res) => 
 
     res.json(safeActivities);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -111,14 +112,14 @@ router.patch("/activities/:activityId/feedback", isAuthenticated, async (req: an
 
     const activity = await storage.getActivity(req.params.activityId);
     if (!activity || !activity.groupId) {
-      return res.status(404).json({ message: "Activity not found" });
+      return fail(res, 404, "Activity not found");
     }
 
     const userId = await getUserId(req);
     const group = await storage.getGroup(activity.groupId);
 
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Forbidden: You don't have access to this activity" });
+      return fail(res, 403, "Forbidden: You don't have access to this activity");
     }
 
     const updatedActivity = await storage.updateActivityFeedback(req.params.activityId, feedback || "");
@@ -129,7 +130,7 @@ router.patch("/activities/:activityId/feedback", isAuthenticated, async (req: an
 
     res.json(updatedActivity);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -138,13 +139,13 @@ router.delete("/groups/:id/activities", isAuthenticated, requireGroupOwnership()
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     await storage.deleteAllGroupActivities(req.params.id);
     res.json({ success: true, message: "All activities cleared" });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -156,19 +157,19 @@ router.delete("/activities/:activityId", isAuthenticated, async (req: any, res: 
 
     const activity = await storage.getActivity(activityId);
     if (!activity) {
-      return res.status(404).json({ message: "Activity not found" });
+      return fail(res, 404, "Activity not found");
     }
 
     const group = await storage.getGroup(activity.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to delete this activity" });
+      return fail(res, 403, "Not authorized to delete this activity");
     }
 
     await storage.deleteActivity(activityId);
     res.json({ success: true, message: "Activity deleted" });
   } catch (error: any) {
     console.error("[Delete Activity] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -181,7 +182,7 @@ router.get("/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess
   try {
     const group = await storage.getGroup(req.params.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const events = await storage.getGroupVotingEvents(req.params.groupId);
@@ -211,7 +212,7 @@ router.get("/groups/:groupId/voting-events", isAuthenticated, requireGroupAccess
 
     res.json(eventsWithLikedBy);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -220,19 +221,19 @@ router.patch("/voting-events/:id", isAuthenticated, requireVotingEventAccess(), 
   try {
     const event = await storage.getVotingEvent(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const userId = await getUserId(req);
     if (event.createdBy !== userId) {
-      return res.status(403).json({ message: "Unauthorized to edit this event" });
+      return fail(res, 403, "Unauthorized to edit this event");
     }
 
     const validatedUpdates = updateVotingEventSchema.parse(req.body);
     const updatedEvent = await storage.updateVotingEvent(req.params.id, validatedUpdates);
     res.json(updatedEvent);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -241,19 +242,19 @@ router.delete("/voting-events/:id", isAuthenticated, requireVotingEventAccess(),
   try {
     const event = await storage.getVotingEvent(req.params.id);
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const userId = await getUserId(req);
     const member = await storage.getGroupMemberByUserId(event.groupId, userId);
     if (event.createdBy !== userId && !member) {
-      return res.status(403).json({ message: "Unauthorized to delete this event" });
+      return fail(res, 403, "Unauthorized to delete this event");
     }
 
     await storage.deleteVotingEvent(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -275,7 +276,7 @@ router.post("/voting-events/:id/vote", isAuthenticated, async (req: any, res: Re
 
     res.json(vote);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -286,7 +287,7 @@ router.delete("/voting-events/:id/vote", isAuthenticated, async (req: any, res: 
     await storage.removeVote(req.params.id, userId);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -296,7 +297,7 @@ router.get("/voting-events/:id/votes", isAuthenticated, requireVotingEventAccess
     const votes = await storage.getEventVotes(req.params.id);
     res.json(votes);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -307,7 +308,7 @@ router.get("/voting-events/:id/my-vote", isAuthenticated, async (req: any, res: 
     const vote = await storage.getUserVote(req.params.id, userId);
     res.json(vote || null);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

@@ -7,7 +7,7 @@
  *   GET  /api/user/events                      — user's events dashboard (all types)
  *   GET  /api/groups/:groupId/itineraries       — list itineraries for a group
  *   GET  /api/itineraries/:id                   — get single itinerary
- *   POST /api/itineraries                       — create itinerary
+ *   POST /api/itineraries                       —create itinerary
  *   PATCH /api/itineraries/:id                  — update itinerary
  *   PATCH /api/itineraries/:id/order            — reorder itinerary items
  *   DELETE /api/itineraries/:id                 — delete itinerary
@@ -22,6 +22,7 @@ import { storage } from "../storage";
 import { getUserId } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { insertItinerarySchema } from "@shared/schema";
+import { fail } from "../lib/responses";
 import {
   itineraries,
   itineraryInvites,
@@ -681,7 +682,7 @@ router.get("/user/events", isAuthenticated, async (req: any, res) => {
   } catch (error: any) {
     console.error('[User Events] Error:', error);
     console.error('[User Events] Error stack:', error.stack);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -694,7 +695,7 @@ router.get("/groups/:groupId/itineraries", async (req, res) => {
     const itinerariesList = await storage.getGroupItineraries(req.params.groupId);
     res.json(itinerariesList);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -706,7 +707,7 @@ router.get("/itineraries/:id", async (req, res) => {
   try {
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     if (itinerary.isStandalone || !itinerary.groupId) {
@@ -793,7 +794,7 @@ router.get("/itineraries/:id", async (req, res) => {
       proposedTimeSlots: timeSlotsWithVotes,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -824,18 +825,18 @@ router.post("/itineraries", isAuthenticated, async (req: any, res) => {
 
     const groupId = validatedData.groupId;
     if (!groupId) {
-      return res.status(400).json({ message: "Group ID is required" });
+      return fail(res, 400, "Group ID is required");
     }
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const groupMembers = await storage.getGroupMembers(groupId);
     const isMember = groupMembers.some(m => m.userId === userId);
     const isOwner = group.userId === userId;
     if (!isMember && !isOwner) {
-      return res.status(403).json({ message: "You must be a member of this group to create itineraries" });
+      return fail(res, 403, "You must be a member of this group to create itineraries");
     }
 
     const itinerary = await storage.createItinerary(validatedData, userId, []);
@@ -843,7 +844,7 @@ router.post("/itineraries", isAuthenticated, async (req: any, res) => {
     res.json(itinerary);
   } catch (error: any) {
     console.error('[Create Itinerary] Error:', error);
-    res.status(500).json({ message: safeError(error, "Couldn't create itinerary. Mind giving it another try?") });
+    fail(res, 500, safeError(error, "Couldn't create itinerary. Mind giving it another try?"));
   }
 });
 
@@ -885,7 +886,7 @@ router.patch("/itineraries/:id", isAuthenticated, async (req, res) => {
     res.json(itinerary);
   } catch (error: any) {
     console.error("[Update Itinerary] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -900,7 +901,7 @@ router.patch("/itineraries/:id/order", isAuthenticated, async (req, res) => {
 
     const currentItinerary = await storage.getItinerary(itineraryId);
     if (!currentItinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const validItemIds = new Set(currentItinerary.items.map((item: ItineraryItem) => item.id));
@@ -912,7 +913,7 @@ router.patch("/itineraries/:id/order", isAuthenticated, async (req, res) => {
     res.json(updatedItinerary);
   } catch (error: any) {
     console.error("[Update Order] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -927,16 +928,16 @@ router.delete("/itineraries/:id", isAuthenticated, async (req: any, res) => {
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to delete this itinerary" });
+      return fail(res, 403, "Not authorized to delete this itinerary");
     }
 
     if (itinerary.eventDate) {
@@ -978,7 +979,7 @@ router.delete("/itineraries/:id", isAuthenticated, async (req: any, res) => {
     await storage.deleteItinerary(itineraryId);
     res.json({ message: "Itinerary deleted" });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

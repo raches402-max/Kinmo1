@@ -33,6 +33,7 @@ import { isAuthenticated } from "../googleAuth";
 import { requireMemberAccess, getUserId, userOwnsGroup, userIsMemberOfGroup } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { updateMemberConstraintsActionSchema } from "../validation-schemas";
+import { fail } from "../lib/responses";
 import {
   members as membersTable,
   users,
@@ -52,7 +53,7 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
     const { inviteToken } = req.params;
 
     if (!inviteToken) {
-      return res.status(400).json({ message: "Invite token required" });
+      return fail(res, 400, "Invite token required");
     }
 
     const invites = await db
@@ -61,7 +62,7 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
       .where(sql`invite_token = ${inviteToken}`);
 
     if (invites.length === 0) {
-      return res.status(404).json({ message: "Invalid or expired invite token" });
+      return fail(res, 404, "Invalid or expired invite token");
     }
 
     const invite = invites[0];
@@ -69,21 +70,21 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
     // Handle organizer invites (no member yet — memberId is null)
     if (!invite.memberId) {
       if (!invite.itineraryId) {
-        return res.status(404).json({ message: "Invalid invite - missing itinerary" });
+        return fail(res, 404, "Invalid invite - missing itinerary");
       }
       const itinerary = await storage.getItinerary(invite.itineraryId);
       if (!itinerary || !itinerary.groupId) {
-        return res.status(404).json({ message: "Itinerary not found" });
+        return fail(res, 404, "Itinerary not found");
       }
 
       const group = await storage.getGroup(itinerary.groupId);
       if (!group || !group.userId) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       const organizer = await storage.getUser(group.userId);
       if (!organizer) {
-        return res.status(404).json({ message: "Organizer not found" });
+        return fail(res, 404, "Organizer not found");
       }
 
       return res.json({
@@ -96,7 +97,7 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
 
     const member = await storage.getMember(invite.memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     res.json({
@@ -107,7 +108,7 @@ router.get("/members/verify-claim/:inviteToken", async (req, res) => {
     });
   } catch (error: any) {
     console.error("[Verify Invite] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -118,7 +119,7 @@ router.post("/members/:id/claim", async (req, res) => {
     const { claimToken, groupId } = req.body;
 
     if (!claimToken) {
-      return res.status(400).json({ message: "Claim token required" });
+      return fail(res, 400, "Claim token required");
     }
 
     let memberId = req.params.id;
@@ -128,12 +129,12 @@ router.post("/members/:id/claim", async (req, res) => {
       const organizerUserId = memberId.replace("organizer-", "");
 
       if (!groupId) {
-        return res.status(400).json({ message: "Group ID required for organizer claim" });
+        return fail(res, 400, "Group ID required for organizer claim");
       }
 
       const group = await storage.getGroup(groupId);
       if (!group || group.userId !== organizerUserId) {
-        return res.status(403).json({ message: "Invalid organizer claim" });
+        return fail(res, 403, "Invalid organizer claim");
       }
 
       const [organizerInfo] = await db
@@ -176,7 +177,7 @@ router.post("/members/:id/claim", async (req, res) => {
 
     const existingMember = await storage.getMember(memberId);
     if (!existingMember) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (existingMember.claimToken && existingMember.claimToken !== claimToken) {
@@ -193,7 +194,7 @@ router.post("/members/:id/claim", async (req, res) => {
 
     res.json(member);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -204,16 +205,16 @@ router.patch("/members/:id/preferences", requireMemberAccess(), async (req: any,
     const { memberLocation, memberBudgetMin, memberBudgetMax, memberAvailability, claimToken } = req.body;
 
     if (!claimToken) {
-      return res.status(401).json({ message: "Claim token required" });
+      return fail(res, 401, "Claim token required");
     }
 
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.claimToken !== claimToken) {
-      return res.status(401).json({ message: "Invalid claim token" });
+      return fail(res, 401, "Invalid claim token");
     }
 
     const updates: any = {};
@@ -225,7 +226,7 @@ router.patch("/members/:id/preferences", requireMemberAccess(), async (req: any,
     const updatedMember = await storage.updateMember(req.params.id, updates);
     res.json(updatedMember);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -236,22 +237,22 @@ router.patch("/members/:id/constraints", requireMemberAccess(), async (req: any,
     const { memberConstraints, claimToken } = req.body;
 
     if (!claimToken) {
-      return res.status(401).json({ message: "Claim token required" });
+      return fail(res, 401, "Claim token required");
     }
 
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.claimToken !== claimToken) {
-      return res.status(401).json({ message: "Invalid claim token" });
+      return fail(res, 401, "Invalid claim token");
     }
 
     const updatedMember = await storage.updateMember(req.params.id, { memberConstraints });
     res.json(updatedMember);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -269,14 +270,14 @@ router.get("/members/:memberId/constraint-analysis", isAuthenticated, async (req
       .limit(1);
 
     if (member.length === 0) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     const hasAccess =
       (await userOwnsGroup(userId, member[0].groupId)) ||
       (await userIsMemberOfGroup(userId, member[0].groupId));
     if (!hasAccess) {
-      return res.status(403).json({ message: "Access denied" });
+      return fail(res, 403, "Access denied");
     }
 
     const currentConstraints = (member[0].memberConstraints as any) || {};
@@ -370,9 +371,9 @@ router.get("/members/:memberId/constraint-analysis", isAuthenticated, async (req
   } catch (error: any) {
     console.error("Error analyzing member constraints:", error);
     if (error.message === "Unauthorized") {
-      return res.status(403).json({ message: "You don't have access to this member" });
+      return fail(res, 403, "You don't have access to this member");
     }
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -394,14 +395,14 @@ router.patch("/members/:memberId/constraints", isAuthenticated, async (req: any,
       .limit(1);
 
     if (member.length === 0) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     const hasAccess =
       (await userOwnsGroup(userId, member[0].groupId)) ||
       (await userIsMemberOfGroup(userId, member[0].groupId));
     if (!hasAccess) {
-      return res.status(403).json({ message: "Access denied" });
+      return fail(res, 403, "Access denied");
     }
 
     const currentConstraints = (member[0].memberConstraints as any) || {};
@@ -432,9 +433,9 @@ router.patch("/members/:memberId/constraints", isAuthenticated, async (req: any,
   } catch (error: any) {
     console.error("Error updating member constraints:", error);
     if (error.message === "Unauthorized") {
-      return res.status(403).json({ message: "You don't have access to this member" });
+      return fail(res, 403, "You don't have access to this member");
     }
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -448,11 +449,11 @@ router.patch("/members/:id/profile", isAuthenticated, async (req: any, res) => {
 
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this member" });
+      return fail(res, 403, "Not authorized to modify this member");
     }
 
     const updatedMember = await storage.updateMember(req.params.id, {
@@ -467,7 +468,7 @@ router.patch("/members/:id/profile", isAuthenticated, async (req: any, res) => {
     res.json(updatedMember);
   } catch (error: any) {
     console.error("[Update Member Profile] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -480,18 +481,18 @@ router.get("/members/:memberId/favorites", isAuthenticated, async (req: any, res
 
     const member = await storage.getMember(memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this member's favorites" });
+      return fail(res, 403, "Not authorized to view this member's favorites");
     }
 
     const favorites = await storage.getMemberFavoriteVenues(memberId);
     res.json(favorites);
   } catch (error: any) {
     console.error("[Get Member Favorites] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -502,21 +503,21 @@ router.post("/members/:memberId/favorites", isAuthenticated, async (req: any, re
     const { venuePlaceId, venueName, venueAddress, venuePhotoUrl, category } = req.body;
 
     if (!venuePlaceId || !venueName) {
-      return res.status(400).json({ message: "venuePlaceId and venueName are required" });
+      return fail(res, 400, "venuePlaceId and venueName are required");
     }
 
     const member = await storage.getMember(memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this member's favorites" });
+      return fail(res, 403, "Not authorized to modify this member's favorites");
     }
 
     const alreadyFavorited = await storage.isFavoriteVenue(memberId, venuePlaceId);
     if (alreadyFavorited) {
-      return res.status(400).json({ message: "Venue already in favorites" });
+      return fail(res, 400, "Venue already in favorites");
     }
 
     const favorite = await storage.addMemberFavoriteVenue(memberId, {
@@ -580,7 +581,7 @@ router.post("/members/:memberId/favorites", isAuthenticated, async (req: any, re
     res.json(favorite);
   } catch (error: any) {
     console.error("[Add Member Favorite] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -591,18 +592,18 @@ router.delete("/members/:memberId/favorites/:placeId", isAuthenticated, async (r
 
     const member = await storage.getMember(memberId);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this member's favorites" });
+      return fail(res, 403, "Not authorized to modify this member's favorites");
     }
 
     await storage.removeMemberFavoriteVenue(memberId, placeId);
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Remove Member Favorite] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -619,13 +620,13 @@ router.get("/groups/:groupId/my-preferences", isAuthenticated, async (req: any, 
     const isOwner = group?.userId === userId;
 
     if (!member && !isOwner) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     const preferences = await storage.getMemberGroupPreferences(userId, groupId);
     res.json(preferences || null);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -640,7 +641,7 @@ router.patch("/groups/:groupId/my-preferences", isAuthenticated, async (req: any
     const isOwner = group?.userId === userId;
 
     if (!member && !isOwner) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     const {
@@ -661,7 +662,7 @@ router.patch("/groups/:groupId/my-preferences", isAuthenticated, async (req: any
 
     res.json(preferences);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -678,7 +679,7 @@ router.get("/groups/:groupId/members-availability", isAuthenticated, async (req:
     const isOwner = group?.userId === userId;
 
     if (!member && !isOwner) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     const membersAvailability = await storage.getGroupMembersAvailability(groupId);
@@ -690,7 +691,7 @@ router.get("/groups/:groupId/members-availability", isAuthenticated, async (req:
       totalMembers: membersAvailability.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -707,7 +708,7 @@ router.get("/groups/:groupId/members-budgets", isAuthenticated, async (req: any,
     const isOwner = group?.userId === userId;
 
     if (!member && !isOwner) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     const membersBudgets = await storage.getGroupMembersBudgets(groupId);
@@ -721,7 +722,7 @@ router.get("/groups/:groupId/members-budgets", isAuthenticated, async (req: any,
       totalMembers: membersBudgets.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

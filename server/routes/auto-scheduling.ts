@@ -5,7 +5,7 @@
  *
  *   POST   /api/groups/:id/trigger-auto-schedule           — manually trigger auto-schedule
  *   POST   /api/groups/:id/maintain-event-pipeline          — maintain event pipeline
- *   DELETE /api/groups/:id/auto-scheduled-events            — clear pending auto-scheduled events
+ *   DELETE /api/groups/:id/auto-scheduled-events            — clearpending auto-scheduled events
  *   GET    /api/groups/:groupId/auto-scheduled-events       — get pending auto-scheduled events
  *   GET    /api/groups/:groupId/auto-scheduled-events/timeline — get events timeline
  *   GET    /api/groups/:groupId/auto-schedule-queue          — get auto-schedule queue
@@ -27,6 +27,7 @@ import { isAuthenticated } from "../googleAuth";
 import { requireGroupOwnership, getUserId } from "../authorization";
 import { storage } from "../storage";
 import { itineraries } from "@shared/schema";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       if (!group.autoScheduleEnabled) {
@@ -135,7 +136,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
       if ('itineraryId' in selection && selection.itineraryId) {
         const originalItinerary = await storage.getItinerary(selection.itineraryId);
         if (!originalItinerary) {
-          return res.status(404).json({ message: "Selected itinerary not found" });
+          return fail(res, 404, "Selected itinerary not found");
         }
 
         // Clean up any existing draft itineraries before creating a new one
@@ -230,7 +231,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
         }
 
       } else {
-        return res.status(400).json({ message: "No valid selection" });
+        return fail(res, 400, "No valid selection");
       }
 
       // Validate and optimize itinerary ordering using AI (only if itinerary was created)
@@ -287,7 +288,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
       if (itineraryId) {
         const itinerary = await storage.getItinerary(itineraryId);
         if (!itinerary || !itinerary.groupId) {
-          return res.status(404).json({ message: "Created itinerary not found" });
+          return fail(res, 404, "Created itinerary not found");
         }
         venues = itinerary.items.map((item: any) => ({
           name: item.venueName,
@@ -301,7 +302,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
           type: v.venueType || 'restaurant',
         }));
       } else {
-        return res.status(400).json({ message: "No venues available for scheduling" });
+        return fail(res, 400, "No venues available for scheduling");
       }
 
       try {
@@ -496,7 +497,7 @@ router.post("/groups/:id/trigger-auto-schedule", isAuthenticated, requireGroupOw
       });
     } catch (error: any) {
       console.error('Error triggering auto-schedule:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -507,11 +508,11 @@ router.post("/groups/:id/maintain-event-pipeline", isAuthenticated, requireGroup
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       if (!group.autoScheduleEnabled) {
-        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+        return fail(res, 400, "Auto-scheduling is not enabled for this group");
       }
 
       console.log(`[Event Pipeline] Manually triggered pipeline maintenance for ${group.name}`);
@@ -531,7 +532,7 @@ router.post("/groups/:id/maintain-event-pipeline", isAuthenticated, requireGroup
       });
     } catch (error: any) {
       console.error('Error maintaining event pipeline:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -542,11 +543,11 @@ router.delete("/groups/:id/auto-scheduled-events", isAuthenticated, requireGroup
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       if (!group.autoScheduleEnabled) {
-        return res.status(400).json({ message: "Auto-scheduling is not enabled for this group" });
+        return fail(res, 400, "Auto-scheduling is not enabled for this group");
       }
 
       console.log(`[Event Pipeline] Clearing pending events for ${group.name}`);
@@ -563,7 +564,7 @@ router.delete("/groups/:id/auto-scheduled-events", isAuthenticated, requireGroup
       });
     } catch (error: any) {
       console.error('Error clearing pending events:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -575,7 +576,7 @@ router.get("/groups/:groupId/auto-scheduled-events", async (req, res) => {
       const events = await storage.getPendingAutoScheduledEvents(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -585,7 +586,7 @@ router.get("/groups/:groupId/auto-scheduled-events/timeline", async (req, res) =
       const events = await storage.getAutoScheduledEventsTimeline(req.params.groupId);
       res.json(events);
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -599,7 +600,7 @@ router.get("/groups/:groupId/auto-schedule-queue", async (req, res) => {
       res.json(queue);
     } catch (error: any) {
       console.error('[Auto-Schedule Queue] Error:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -610,7 +611,7 @@ router.post("/groups/:groupId/auto-schedule-queue/regenerate", isAuthenticated, 
       const { eventId } = req.body;
 
       if (!eventId) {
-        return res.status(400).json({ message: "eventId is required" });
+        return fail(res, 400, "eventId is required");
       }
 
       console.log('[Regenerate Queue] Regenerating event:', eventId);
@@ -667,7 +668,7 @@ router.post("/groups/:groupId/auto-schedule-queue/regenerate", isAuthenticated, 
       const newEvent = await regenerateQueueEvent(groupId, eventId, excludeVenueIds, storage);
 
       if (!newEvent) {
-        return res.status(500).json({ message: 'Failed to regenerate event' });
+        return fail(res, 500, 'Failed to regenerate event');
       }
 
       // Add regeneration count to the new event
@@ -684,7 +685,7 @@ router.post("/groups/:groupId/auto-schedule-queue/regenerate", isAuthenticated, 
       res.json({ events: updatedEvents });
     } catch (error: any) {
       console.error('[Regenerate Queue] Error:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -696,7 +697,7 @@ router.post("/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, req
       const { queueEvent } = req.body; // Full queue event from frontend
 
       if (!queueEvent || !queueEvent.venues || queueEvent.venues.length === 0) {
-        return res.status(400).json({ message: "Invalid queue event data" });
+        return fail(res, 400, "Invalid queue event data");
       }
 
       console.log('[Approve Queue] Creating itinerary from queue event:', queueEvent.id);
@@ -749,7 +750,7 @@ router.post("/groups/:groupId/auto-schedule-queue/approve", isAuthenticated, req
       });
     } catch (error: any) {
       console.error('[Approve Queue] Error:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -761,7 +762,7 @@ router.get("/groups/:groupId/pending-auto-event", isAuthenticated, async (req, r
       const pendingEvent = await storage.getPendingAutoScheduledEvent(req.params.groupId);
       res.json(pendingEvent || null);
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -770,7 +771,7 @@ router.post("/auto-schedule/:id/approve", isAuthenticated, async (req, res) => {
     try {
       const event = await storage.getAutoScheduledEvent(req.params.id);
       if (!event) {
-        return res.status(404).json({ message: "Auto-scheduled event not found" });
+        return fail(res, 404, "Auto-scheduled event not found");
       }
 
       // Mark event as approved (will be sent immediately)
@@ -778,7 +779,7 @@ router.post("/auto-schedule/:id/approve", isAuthenticated, async (req, res) => {
 
       res.json({ success: true, message: "Event approved and will be sent to group" });
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -844,7 +845,7 @@ router.post("/frequency-feedback", isAuthenticated, async (req, res) => {
 
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -860,16 +861,16 @@ router.post("/groups/:groupId/schedule-next-event", isAuthenticated, async (req:
       // Verify user is the group owner
       const group = await storage.getGroup(groupId);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
       if (group.userId !== userId) {
-        return res.status(403).json({ message: "Only the group owner can schedule events" });
+        return fail(res, 403, "Only the group owner can schedule events");
       }
 
       // Check if there's already a pending auto event
       const existingEvent = await storage.getPendingAutoScheduledEvent(groupId);
       if (existingEvent && existingEvent.status === 'pending_approval') {
-        return res.status(400).json({ message: "There's already a pending event. Please approve or reject it first." });
+        return fail(res, 400, "There's already a pending event. Please approve or reject it first.");
       }
 
       // Generate 3 itinerary options
@@ -921,7 +922,7 @@ router.post("/groups/:groupId/schedule-next-event", isAuthenticated, async (req:
       });
     } catch (error: any) {
       console.error('[Schedule Next Event] Error:', error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 

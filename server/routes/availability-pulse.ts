@@ -17,6 +17,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId } from "../authorization";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -27,7 +28,7 @@ router.get("/groups/:groupId/availability-pulse", isAuthenticated, async (req: a
 
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     const pulseData = await storage.getActivePulseWithResponses(groupId);
@@ -62,7 +63,7 @@ router.get("/groups/:groupId/availability-pulse", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error getting pulse:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -74,10 +75,10 @@ router.post("/groups/:groupId/availability-pulse", isAuthenticated, async (req: 
 
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only the organizer can create availability pulses" });
+      return fail(res, 403, "Only the organizer can create availability pulses");
     }
 
     const existingPulse = await storage.getActivePulseForGroup(groupId);
@@ -127,7 +128,7 @@ router.post("/groups/:groupId/availability-pulse", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error creating pulse:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -139,16 +140,16 @@ router.post("/availability-pulse/:pulseId/respond", isAuthenticated, async (req:
 
     const pulse = await storage.getAvailabilityPulse(pulseId);
     if (!pulse) {
-      return res.status(404).json({ message: "Pulse not found" });
+      return fail(res, 404, "Pulse not found");
     }
 
     if (pulse.status !== 'active') {
-      return res.status(400).json({ message: "This availability pulse is no longer active" });
+      return fail(res, 400, "This availability pulse is no longer active");
     }
 
     const member = await storage.getGroupMemberByUserId(pulse.groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     let response = await storage.getPulseResponse(pulseId, member.id);
@@ -176,7 +177,7 @@ router.post("/availability-pulse/:pulseId/respond", isAuthenticated, async (req:
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error submitting response:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -186,13 +187,13 @@ router.get("/availability-pulse/:pulseId/respond/:responseToken", async (req, re
 
     const data = await storage.getPulseResponseWithDetails(responseToken);
     if (!data) {
-      return res.status(404).json({ message: "Response not found" });
+      return fail(res, 404, "Response not found");
     }
 
     const { response, pulse, member, group } = data;
 
     if (pulse.id !== pulseId) {
-      return res.status(400).json({ message: "Invalid pulse/response combination" });
+      return fail(res, 400, "Invalid pulse/response combination");
     }
 
     const { aggregated, totalResponses } = await storage.getAggregatedPulseAvailability(pulseId);
@@ -224,7 +225,7 @@ router.get("/availability-pulse/:pulseId/respond/:responseToken", async (req, re
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error getting response page:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -235,16 +236,16 @@ router.post("/availability-pulse/:pulseId/respond/:responseToken", async (req, r
 
     const response = await storage.getPulseResponseByToken(responseToken);
     if (!response) {
-      return res.status(404).json({ message: "Response not found" });
+      return fail(res, 404, "Response not found");
     }
 
     if (response.pulseId !== pulseId) {
-      return res.status(400).json({ message: "Invalid pulse/response combination" });
+      return fail(res, 400, "Invalid pulse/response combination");
     }
 
     const pulse = await storage.getAvailabilityPulse(pulseId);
     if (!pulse || pulse.status !== 'active') {
-      return res.status(400).json({ message: "This availability pulse is no longer active" });
+      return fail(res, 400, "This availability pulse is no longer active");
     }
 
     const updatedResponse = await storage.updatePulseResponse(response.id, availability, notes);
@@ -260,7 +261,7 @@ router.post("/availability-pulse/:pulseId/respond/:responseToken", async (req, r
     });
   } catch (error: any) {
     console.error('[Availability Pulse] Error submitting response by token:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

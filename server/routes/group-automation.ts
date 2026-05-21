@@ -7,7 +7,7 @@
  *   POST  /api/groups/:id/pause-automation — pause auto-scheduling
  *   POST  /api/groups/:id/resume-automation — resume auto-scheduling
  *
- * MIGRATED FROM: server/routes.ts
+ * MIGRATEDFROM: server/routes.ts
  */
 
 import { safeError } from "../lib/safe-error";
@@ -17,6 +17,7 @@ import { isAuthenticated } from "../googleAuth";
 import { requireGroupOwnership } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { updateAutomationSchema, pauseAutomationSchema } from "../validation-schemas";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -29,7 +30,7 @@ router.patch("/groups/:id/automation", isAuthenticated, requireGroupOwnership(),
 
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const fieldMapping: Record<string, string> = {
@@ -55,7 +56,7 @@ router.patch("/groups/:id/automation", isAuthenticated, requireGroupOwnership(),
     if (validatedData.field && validatedData.value !== undefined) {
       const dbField = fieldMapping[validatedData.field];
       if (!dbField) {
-        return res.status(400).json({ message: `Invalid field: ${validatedData.field}` });
+        return fail(res, 400, `Invalid field: ${validatedData.field}`);
       }
       updates[dbField] = validatedData.value;
     } else {
@@ -70,7 +71,7 @@ router.patch("/groups/:id/automation", isAuthenticated, requireGroupOwnership(),
     }
 
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ message: "No valid automation settings provided" });
+      return fail(res, 400, "No valid automation settings provided");
     }
 
     // Initialize nextEventDueDate when enabling auto-scheduling for the first time
@@ -83,7 +84,7 @@ router.patch("/groups/:id/automation", isAuthenticated, requireGroupOwnership(),
     const updatedGroup = await storage.updateGroup(req.params.id, updates);
     res.json(updatedGroup);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -93,7 +94,7 @@ router.patch("/groups/:id/invite-link", isAuthenticated, requireGroupOwnership()
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const { open, regenerate } = req.body;
@@ -120,7 +121,7 @@ router.patch("/groups/:id/invite-link", isAuthenticated, requireGroupOwnership()
       inviteLinkOpen: updatedGroup.inviteLinkOpen,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -130,7 +131,7 @@ router.post("/groups/:id/pause-automation", isAuthenticated, requireGroupOwnersh
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const validatedData = safeParse(pauseAutomationSchema, req.body, res);
@@ -153,7 +154,7 @@ router.post("/groups/:id/pause-automation", isAuthenticated, requireGroupOwnersh
     const updatedGroup = await storage.updateGroup(req.params.id, updates);
     res.json(updatedGroup);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -163,7 +164,7 @@ router.post("/groups/:id/resume-automation", isAuthenticated, requireGroupOwners
   try {
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     const updates = {
@@ -175,7 +176,7 @@ router.post("/groups/:id/resume-automation", isAuthenticated, requireGroupOwners
     const updatedGroup = await storage.updateGroup(req.params.id, updates);
     res.json(updatedGroup);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 

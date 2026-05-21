@@ -29,6 +29,7 @@ import { eq, sql, and, or, gte, desc, isNull } from "drizzle-orm";
 import { isAuthenticated } from "../googleAuth";
 import { getUserId, userOwnsGroup, userIsMemberOfGroup } from "../authorization";
 import { safeParse } from "../validation-middleware";
+import { fail } from "../lib/responses";
 import {
   updateUserPreferencesSchema,
   updateMemberGroupPreferencesSchema,
@@ -74,7 +75,7 @@ router.get("/user/profile", isAuthenticated, async (req: any, res) => {
     res.json(profile || { displayName: '', bio: '', emailNotifications: true });
   } catch (error: any) {
     console.error("Error fetching user profile:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -87,9 +88,9 @@ router.patch("/user/profile", isAuthenticated, async (req: any, res) => {
   } catch (error: any) {
     console.error("Error updating user profile:", error);
     if (error.name === 'ZodError') {
-      return res.status(400).json({ message: "Invalid profile data", errors: error.errors });
+      return fail(res, 400, "Invalid profile data", { errors: error.errors });
     }
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -108,7 +109,7 @@ router.get("/user/preferences", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error fetching user preferences:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -136,7 +137,7 @@ router.patch("/user/preferences", isAuthenticated, async (req: any, res) => {
     });
   } catch (error: any) {
     console.error("Error updating user preferences:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -148,7 +149,7 @@ router.get("/user/preferences/groups/:groupId", isAuthenticated, async (req: any
 
     const hasAccess = await userOwnsGroup(userId, groupId) || await userIsMemberOfGroup(userId, groupId);
     if (!hasAccess) {
-      return res.status(403).json({ message: "Access denied" });
+      return fail(res, 403, "Access denied");
     }
 
     const preferences = await storage.getMemberGroupPreferences(userId, groupId);
@@ -162,9 +163,9 @@ router.get("/user/preferences/groups/:groupId", isAuthenticated, async (req: any
   } catch (error: any) {
     console.error("Error fetching group preferences:", error);
     if (error.message === "Unauthorized") {
-      return res.status(403).json({ message: "You don't have access to this group" });
+      return fail(res, 403, "You don't have access to this group");
     }
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -175,7 +176,7 @@ router.patch("/user/preferences/groups/:groupId", isAuthenticated, async (req: a
 
     const hasAccess = await userOwnsGroup(userId, groupId) || await userIsMemberOfGroup(userId, groupId);
     if (!hasAccess) {
-      return res.status(403).json({ message: "Access denied" });
+      return fail(res, 403, "Access denied");
     }
 
     const validatedData = safeParse(updateMemberGroupPreferencesSchema, req.body, res);
@@ -201,9 +202,9 @@ router.patch("/user/preferences/groups/:groupId", isAuthenticated, async (req: a
   } catch (error: any) {
     console.error("Error updating group preferences:", error);
     if (error.message === "Unauthorized") {
-      return res.status(403).json({ message: "You don't have access to this group" });
+      return fail(res, 403, "You don't have access to this group");
     }
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -215,7 +216,7 @@ router.get("/user/contacts", isAuthenticated, async (req: any, res) => {
     const contacts = await storage.getUserContacts(userId);
     res.json(contacts);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -235,7 +236,7 @@ router.get("/user/groups/backup", isAuthenticated, async (req: any, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="kinmo-backup-${new Date().toISOString().split('T')[0]}.json"`);
     res.json(backup);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -247,7 +248,7 @@ router.get("/user/collections", isAuthenticated, async (req: any, res) => {
     const collections = await storage.getUserGroupCollections(userId);
     res.json(collections);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -264,14 +265,14 @@ router.patch("/user/collections/reorder", isAuthenticated, async (req: any, res)
     const allOwned = collectionOrders.every((order: any) => userCollectionIds.has(order.id));
 
     if (!allOwned) {
-      return res.status(403).json({ message: "You don't own all these collections" });
+      return fail(res, 403, "You don't own all these collections");
     }
 
     await storage.reorderGroupCollections(collectionOrders);
     res.json({ success: true });
   } catch (error: any) {
     console.error("[Reorder Collections] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -286,7 +287,7 @@ router.post("/user/collections", isAuthenticated, async (req: any, res) => {
     res.json(collection);
   } catch (error: any) {
     console.error("[Create Collection] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -301,13 +302,13 @@ router.patch("/user/collections/:id", isAuthenticated, async (req: any, res) => 
     const collections = await storage.getUserGroupCollections(userId);
     const collection = collections.find((c: any) => c.id === id);
     if (!collection) {
-      return res.status(404).json({ message: "Collection not found" });
+      return fail(res, 404, "Collection not found");
     }
 
     const updated = await storage.updateGroupCollection(id, { name });
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -319,13 +320,13 @@ router.delete("/user/collections/:id", isAuthenticated, async (req: any, res) =>
     const collections = await storage.getUserGroupCollections(userId);
     const collection = collections.find((c: any) => c.id === id);
     if (!collection) {
-      return res.status(404).json({ message: "Collection not found" });
+      return fail(res, 404, "Collection not found");
     }
 
     await storage.deleteGroupCollection(id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -337,7 +338,7 @@ router.get("/user/dashboard", isAuthenticated, async (req: any, res) => {
 
     const [user] = await db.select().from(users).where(eq(users.id, userId));
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return fail(res, 404, "User not found");
     }
 
     const memberGroups = await db
@@ -516,7 +517,7 @@ router.get("/user/dashboard", isAuthenticated, async (req: any, res) => {
     });
   } catch (error) {
     console.error("Error fetching member dashboard:", error);
-    res.status(500).json({ message: "Failed to fetch dashboard data" });
+    fail(res, 500, "Failed to fetch dashboard data");
   }
 });
 
@@ -633,7 +634,7 @@ router.get("/user/hosting-requests", isAuthenticated, async (req: any, res) => {
     res.json(assignments);
   } catch (error: any) {
     console.error('[Hosting Requests] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

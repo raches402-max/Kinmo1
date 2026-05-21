@@ -17,6 +17,7 @@ import { db } from "../db";
 import { storage } from "../storage";
 import { geocodeLocation } from "../google-places";
 import { generateOGImage, generateDefaultOGImage, type OGImageParams } from "../og-image";
+import { fail } from "../lib/responses";
 import {
   members as membersTable,
   rsvps as rsvpsTable,
@@ -146,19 +147,19 @@ router.get("/geocode", async (req, res) => {
     const { address } = req.query;
 
     if (!address || typeof address !== "string") {
-      return res.status(400).json({ message: "Address parameter required" });
+      return fail(res, 400, "Address parameter required");
     }
 
     const result = await geocodeLocation(address);
 
     if (!result) {
-      return res.status(404).json({ message: "Location not found" });
+      return fail(res, 404, "Location not found");
     }
 
     res.json(result);
   } catch (error: any) {
     console.error("Geocode error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to geocode location") });
+    fail(res, 500, safeError(error, "Failed to geocode location"));
   }
 });
 
@@ -169,7 +170,7 @@ router.get("/photos/v1/:photoName(*)", async (req, res) => {
     const photoName = decodeURIComponent(req.params.photoName);
 
     if (!photoName) {
-      return res.status(400).json({ message: "Photo name is required" });
+      return fail(res, 400, "Photo name is required");
     }
 
     const placeIdMatch = photoName.match(/^places\/([^\/]+)\/photos\//);
@@ -223,7 +224,7 @@ router.get("/photos/v1/:photoName(*)", async (req, res) => {
 
     const apiKey = process.env.GOOGLE_PLACES_API_KEY_2 || process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ message: "Google API key not configured" });
+      return fail(res, 500, "Google API key not configured");
     }
 
     let photoUrl = `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=400`;
@@ -258,7 +259,7 @@ router.get("/photos/v1/:photoName(*)", async (req, res) => {
 
     if (!photoResponse.ok) {
       console.error(`[Photo Cache v1] Failed to fetch photo: ${photoResponse.status}`);
-      return res.status(404).json({ message: "Photo not found" });
+      return fail(res, 404, "Photo not found");
     }
 
     const photoBuffer = await photoResponse.arrayBuffer();
@@ -294,7 +295,7 @@ router.get("/photos/v1/:photoName(*)", async (req, res) => {
     res.send(Buffer.from(photoBuffer));
   } catch (error) {
     console.error("Error fetching photo v1:", error);
-    res.status(500).json({ message: "Failed to fetch photo" });
+    fail(res, 500, "Failed to fetch photo");
   }
 });
 
@@ -305,7 +306,7 @@ router.get("/photos/:photoReference", async (req, res) => {
     const { photoReference } = req.params;
 
     if (!photoReference) {
-      return res.status(400).json({ message: "Photo reference is required" });
+      return fail(res, 400, "Photo reference is required");
     }
 
     const cached = await db
@@ -328,7 +329,7 @@ router.get("/photos/:photoReference", async (req, res) => {
 
     const apiKey = process.env.GOOGLE_PLACES_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ message: "Google API key not configured" });
+      return fail(res, 500, "Google API key not configured");
     }
 
     const photoUrl = `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photo_reference=${photoReference}&key=${apiKey}`;
@@ -336,7 +337,7 @@ router.get("/photos/:photoReference", async (req, res) => {
 
     if (!photoResponse.ok) {
       console.error(`[Photo Cache] Failed to fetch photo: ${photoResponse.status}`);
-      return res.status(404).json({ message: "Photo not found" });
+      return fail(res, 404, "Photo not found");
     }
 
     const photoBuffer = await photoResponse.arrayBuffer();
@@ -368,7 +369,7 @@ router.get("/photos/:photoReference", async (req, res) => {
     res.send(Buffer.from(photoBuffer));
   } catch (error) {
     console.error("Error fetching photo:", error);
-    res.status(500).json({ message: "Failed to fetch photo" });
+    fail(res, 500, "Failed to fetch photo");
   }
 });
 

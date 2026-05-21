@@ -20,6 +20,7 @@ import { getUserId } from "../authorization";
 import { safeParse } from "../validation-middleware";
 import { postEventFeedbackSchema } from "../validation-schemas";
 import { triggerInsightUpdate } from "../insight-triggers";
+import { fail } from "../lib/responses";
 import {
   rsvps as rsvpsTable,
   itineraries,
@@ -64,7 +65,7 @@ router.post("/itineraries/:id/post-event-feedback", isAuthenticated, async (req:
       .limit(1);
 
     if (!itinerary) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     let group = null;
@@ -74,7 +75,7 @@ router.post("/itineraries/:id/post-event-feedback", isAuthenticated, async (req:
     if (itinerary.groupId) {
       group = await storage.getGroup(itinerary.groupId);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
       isGroupOwner = group.userId === userId;
     } else {
@@ -105,7 +106,7 @@ router.post("/itineraries/:id/post-event-feedback", isAuthenticated, async (req:
     }
 
     if (!rsvp || rsvp.length === 0) {
-      return res.status(404).json({ message: "RSVP not found. You must RSVP to an event before leaving feedback." });
+      return fail(res, 404, "RSVP not found. You must RSVP to an event before leaving feedback.");
     }
 
     const feedbackData: any = {
@@ -207,7 +208,7 @@ router.post("/itineraries/:id/post-event-feedback", isAuthenticated, async (req:
     res.json(updated[0]);
   } catch (error: any) {
     console.error('[Post Event Feedback] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -218,10 +219,10 @@ router.get("/groups/:groupId/feedback-summary", isAuthenticated, async (req: any
 
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this group's feedback" });
+      return fail(res, 403, "Not authorized to view this group's feedback");
     }
 
     const itinerariesData = await db
@@ -292,7 +293,7 @@ router.get("/groups/:groupId/feedback-summary", isAuthenticated, async (req: any
     });
   } catch (error: any) {
     console.error('[Get Feedback Summary] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -303,10 +304,10 @@ router.get("/groups/:groupId/post-event-feedback-summary", isAuthenticated, asyn
 
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this group's feedback" });
+      return fail(res, 403, "Not authorized to view this group's feedback");
     }
 
     const itinerariesData = await db
@@ -391,7 +392,7 @@ router.get("/groups/:groupId/post-event-feedback-summary", isAuthenticated, asyn
     });
   } catch (error: any) {
     console.error('[Get Post Event Feedback Summary] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

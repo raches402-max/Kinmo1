@@ -20,6 +20,7 @@ import { isAuthenticated } from "../googleAuth";
 import { storage } from "../storage";
 import { getUserId, requireItineraryAccess } from "../authorization";
 import { guestInvites } from "@shared/schema";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -30,17 +31,17 @@ router.post("/itineraries/:itineraryId/guest-invites", isAuthenticated, requireI
     const { guestName } = req.body;
 
     if (!guestName || !guestName.trim()) {
-      return res.status(400).json({ message: "Guest name is required" });
+      return fail(res, 400, "Guest name is required");
     }
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group owner can invite guests" });
+      return fail(res, 403, "Only the group owner can invite guests");
     }
 
     const guestToken = `guest_${crypto.randomUUID()}`;
@@ -57,7 +58,7 @@ router.post("/itineraries/:itineraryId/guest-invites", isAuthenticated, requireI
 
     res.json(guestInvite);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -68,12 +69,12 @@ router.get("/itineraries/:itineraryId/guest-invites", isAuthenticated, async (re
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Unauthorized" });
+      return fail(res, 403, "Unauthorized");
     }
 
     const invites = await db
@@ -83,7 +84,7 @@ router.get("/itineraries/:itineraryId/guest-invites", isAuthenticated, async (re
 
     res.json(invites);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -94,17 +95,17 @@ router.patch("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticated
     const { guestName } = req.body;
 
     if (!guestName || !guestName.trim()) {
-      return res.status(400).json({ message: "Guest name is required" });
+      return fail(res, 400, "Guest name is required");
     }
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group owner can edit guests" });
+      return fail(res, 403, "Only the group owner can edit guests");
     }
 
     const [updated] = await db
@@ -117,12 +118,12 @@ router.patch("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticated
       .returning();
 
     if (!updated) {
-      return res.status(404).json({ message: "Guest not found" });
+      return fail(res, 404, "Guest not found");
     }
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -133,12 +134,12 @@ router.delete("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticate
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group owner can remove guests" });
+      return fail(res, 403, "Only the group owner can remove guests");
     }
 
     const [deleted] = await db
@@ -150,12 +151,12 @@ router.delete("/itineraries/:itineraryId/guest-invites/:guestId", isAuthenticate
       .returning();
 
     if (!deleted) {
-      return res.status(404).json({ message: "Guest not found" });
+      return fail(res, 404, "Guest not found");
     }
 
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

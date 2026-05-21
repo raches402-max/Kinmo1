@@ -42,6 +42,7 @@ import { searchPlaces, geocodeLocation, detectAndParseGoogleMapsUrl, getBestVenu
 import type { TrustSource } from "../trust-state";
 import { analyzeEventAvailability } from "../availability-analyzer";
 import { notifyEventInvite } from "../notifications";
+import { fail } from "../lib/responses";
 import {
   itineraries,
   itineraryItems,
@@ -174,7 +175,7 @@ router.delete("/itinerary-invites/:id", isAuthenticated, async (req: any, res) =
       .where(eq(itineraryInvites.id, id));
 
     if (!invite) {
-      return res.status(404).json({ message: "Invite not found" });
+      return fail(res, 404, "Invite not found");
     }
 
     // Check if user is group organizer (can delete any invite)
@@ -201,7 +202,7 @@ router.delete("/itinerary-invites/:id", isAuthenticated, async (req: any, res) =
     }
 
     if (!isInviteOwner && !isOrganizer) {
-      return res.status(403).json({ message: "Not authorized to remove this invite" });
+      return fail(res, 403, "Not authorized to remove this invite");
     }
 
     // Delete the invite
@@ -212,7 +213,7 @@ router.delete("/itinerary-invites/:id", isAuthenticated, async (req: any, res) =
     res.json({ message: "Invite removed" });
   } catch (error: any) {
     console.error('[Delete Invite] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -224,7 +225,7 @@ router.post("/groups/:groupId/itineraries/validate", isAuthenticated, async (req
     const userId = await getUserId(req);
 
     if (!selectedVenues || !Array.isArray(selectedVenues) || selectedVenues.length === 0) {
-      return res.status(400).json({ message: "No venues selected" });
+      return fail(res, 400, "No venues selected");
     }
 
     // Fetch venue details with location data
@@ -313,7 +314,7 @@ router.post("/groups/:groupId/itineraries/validate", isAuthenticated, async (req
     const validVenues = venuesWithDetails.filter((v): v is NonNullable<typeof v> => v !== null);
 
     if (validVenues.length === 0) {
-      return res.status(400).json({ message: "No valid venues found" });
+      return fail(res, 400, "No valid venues found");
     }
 
     // Validate itinerary with AI
@@ -369,7 +370,7 @@ router.post("/groups/:groupId/itineraries/validate", isAuthenticated, async (req
     });
   } catch (error: any) {
     console.error("Error validating itinerary:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -381,7 +382,7 @@ router.delete("/itinerary-items/:id", isAuthenticated, async (req: any, res) => 
     // Get the item to find its itinerary
     const item = await storage.getItineraryItemById(itemId);
     if (!item) {
-      return res.status(404).json({ message: "Itinerary item not found" });
+      return fail(res, 404, "Itinerary item not found");
     }
 
     // Delete the item
@@ -390,7 +391,7 @@ router.delete("/itinerary-items/:id", isAuthenticated, async (req: any, res) => 
     res.json({ message: "Itinerary item deleted successfully" });
   } catch (error: any) {
     console.error("[Delete Itinerary Item] Error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to delete itinerary item") });
+    fail(res, 500, safeError(error, "Failed to delete itinerary item"));
   }
 });
 
@@ -406,7 +407,7 @@ router.patch("/itinerary-items/:id", isAuthenticated, async (req: any, res) => {
     // Get the item to verify it exists
     const item = await storage.getItineraryItemById(itemId);
     if (!item) {
-      return res.status(404).json({ message: "Itinerary item not found" });
+      return fail(res, 404, "Itinerary item not found");
     }
 
     // Parse date strings to Date objects if provided
@@ -424,7 +425,7 @@ router.patch("/itinerary-items/:id", isAuthenticated, async (req: any, res) => {
     res.json(updatedItem);
   } catch (error: any) {
     console.error("[Update Itinerary Item] Error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to update itinerary item") });
+    fail(res, 500, safeError(error, "Failed to update itinerary item"));
   }
 });
 
@@ -441,7 +442,7 @@ router.post("/itineraries/:id/items", isAuthenticated, requireItineraryAccess(),
     // Verify itinerary exists
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Add the items
@@ -450,7 +451,7 @@ router.post("/itineraries/:id/items", isAuthenticated, requireItineraryAccess(),
     res.json(newItems);
   } catch (error: any) {
     console.error("[Add Itinerary Items] Error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to add itinerary items") });
+    fail(res, 500, safeError(error, "Failed to add itinerary items"));
   }
 });
 
@@ -478,7 +479,7 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
     // Verify itinerary exists (allow both group events and standalone events)
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || (!itinerary.groupId && !itinerary.isStandalone)) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     let latitude: string | null = null;
@@ -657,7 +658,7 @@ router.post("/itineraries/:id/items/ad-hoc", isAuthenticated, requireItineraryAc
     res.json(newItem);
   } catch (error: any) {
     console.error("[Add Ad-hoc Venue] Error:", error);
-    res.status(500).json({ message: safeError(error, "Failed to add ad-hoc venue") });
+    fail(res, 500, safeError(error, "Failed to add ad-hoc venue"));
   }
 });
 
@@ -691,7 +692,7 @@ router.get("/itineraries/:itineraryId/time-slots", async (req: any, res) => {
 
     res.json(timeSlotsWithVotes);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -704,12 +705,12 @@ router.post("/itineraries/:itineraryId/time-slots", isAuthenticated, requireItin
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group organizer can add time slots" });
+      return fail(res, 403, "Only the group organizer can add time slots");
     }
 
     const timeSlotsToCreate = timeSlots.map((slot: any) => ({
@@ -722,7 +723,7 @@ router.post("/itineraries/:itineraryId/time-slots", isAuthenticated, requireItin
     const created = await storage.createProposedTimeSlots(timeSlotsToCreate);
     res.json(created);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -734,7 +735,7 @@ router.post("/time-slots/:timeSlotId/vote", async (req: any, res) => {
 
     // Validate voteType
     if (!["yes", "maybe", "no"].includes(voteType)) {
-      return res.status(400).json({ message: "voteType must be 'yes', 'maybe', or 'no'" });
+      return fail(res, 400, "voteType must be 'yes', 'maybe', or 'no'");
     }
 
     let userId = null;
@@ -743,25 +744,25 @@ router.post("/time-slots/:timeSlotId/vote", async (req: any, res) => {
     }
 
     if (!userId && !memberId) {
-      return res.status(400).json({ message: "Either userId or memberId is required" });
+      return fail(res, 400, "Either userId or memberId is required");
     }
 
     // Validate that the time slot exists and get its itinerary
     const timeSlot = await storage.getTimeSlot(timeSlotId);
     if (!timeSlot) {
-      return res.status(404).json({ message: "Time slot not found" });
+      return fail(res, 404, "Time slot not found");
     }
 
     const itinerary = await storage.getItinerary(timeSlot.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Validate memberId belongs to this group
     if (memberId) {
       const member = await storage.getMember(memberId);
       if (!member || member.groupId !== itinerary.groupId) {
-        return res.status(403).json({ message: "Member does not belong to this group" });
+        return fail(res, 403, "Member does not belong to this group");
       }
     }
 
@@ -775,7 +776,7 @@ router.post("/time-slots/:timeSlotId/vote", async (req: any, res) => {
 
     res.json(vote);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -794,32 +795,32 @@ router.delete("/time-slots/:timeSlotId/vote", async (req: any, res) => {
     }
 
     if (!userId && !memberId) {
-      return res.status(400).json({ message: "Either userId or memberId is required" });
+      return fail(res, 400, "Either userId or memberId is required");
     }
 
     // Validate that the time slot exists and get its itinerary
     const timeSlot = await storage.getTimeSlot(timeSlotId);
     if (!timeSlot) {
-      return res.status(404).json({ message: "Time slot not found" });
+      return fail(res, 404, "Time slot not found");
     }
 
     const itinerary = await storage.getItinerary(timeSlot.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Validate memberId belongs to this group
     if (memberId) {
       const member = await storage.getMember(memberId);
       if (!member || member.groupId !== itinerary.groupId) {
-        return res.status(403).json({ message: "Member does not belong to this group" });
+        return fail(res, 403, "Member does not belong to this group");
       }
     }
 
     await storage.removeTimeSlotVote(timeSlotId, userId, memberId);
     res.json({ message: "Vote removed" });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -831,17 +832,17 @@ router.patch("/time-slots/:timeSlotId/select", isAuthenticated, async (req: any,
 
     const timeSlot = await storage.getTimeSlot(timeSlotId);
     if (!timeSlot) {
-      return res.status(404).json({ message: "Time slot not found" });
+      return fail(res, 404, "Time slot not found");
     }
 
     const itinerary = await storage.getItinerary(timeSlot.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Allow group owner OR event host to select time slot
@@ -855,7 +856,7 @@ router.patch("/time-slots/:timeSlotId/select", isAuthenticated, async (req: any,
     }
 
     if (!isOwner && !isHost) {
-      return res.status(403).json({ message: "Only the group organizer or event host can select a time slot" });
+      return fail(res, 403, "Only the group organizer or event host can select a time slot");
     }
 
     const updated = await storage.updateTimeSlotSelection(timeSlotId, true);
@@ -866,7 +867,7 @@ router.patch("/time-slots/:timeSlotId/select", isAuthenticated, async (req: any,
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -876,7 +877,7 @@ router.get("/groups/:groupId/saved-itineraries", async (req, res) => {
     const savedItineraries = await storage.getSavedItineraries(req.params.groupId);
     res.json(savedItineraries);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -893,13 +894,13 @@ router.post("/itineraries/:id/save", isAuthenticated, requireItineraryAccess(), 
     // Get the original itinerary with items
     const original = await storage.getItinerary(req.params.id);
     if (!original || !original.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get the group to access location
     const group = await storage.getGroup(original.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Auto-generate name if not provided
@@ -941,7 +942,7 @@ router.post("/itineraries/:id/save", isAuthenticated, requireItineraryAccess(), 
 
     res.json(savedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -953,18 +954,18 @@ router.post("/itineraries/:id/duplicate", isAuthenticated, requireItineraryAcces
     // Get the original itinerary with items
     const original = await storage.getItinerary(req.params.id);
     if (!original || !original.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get the group to check ownership
     const group = await storage.getGroup(original.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Verify user is the group owner
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "You do not have permission to duplicate this itinerary" });
+      return fail(res, 403, "You do not have permission to duplicate this itinerary");
     }
 
     // Create a duplicate as a draft
@@ -990,7 +991,7 @@ router.post("/itineraries/:id/duplicate", isAuthenticated, requireItineraryAcces
 
     res.json(duplicatedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1006,12 +1007,12 @@ router.post("/itineraries/:id/send", isAuthenticated, requireItineraryAccess(), 
 
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Handle multiple event dates by creating proposed time slots
@@ -1259,7 +1260,7 @@ router.post("/itineraries/:id/send", isAuthenticated, requireItineraryAccess(), 
     res.json(updatedItinerary);
   } catch (error: any) {
     console.error("[Send Itinerary] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1275,7 +1276,7 @@ router.post("/itineraries/:id/send-backup", isAuthenticated, requireItineraryAcc
     const itinerary = await storage.updateItinerary(req.params.id, updates);
     res.json(itinerary);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1284,7 +1285,7 @@ router.post("/itineraries/:id/finalize", isAuthenticated, requireItineraryAccess
   try {
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Validate venue hours if we have an event date
@@ -1352,7 +1353,7 @@ router.post("/itineraries/:id/finalize", isAuthenticated, requireItineraryAccess
 
     res.json(updatedItinerary);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1362,7 +1363,7 @@ router.get("/groups/:groupId/proposed-itineraries", async (req, res) => {
     const proposedItineraries = await storage.getProposedItineraries(req.params.groupId);
     res.json(proposedItineraries);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1379,12 +1380,12 @@ router.get("/itineraries/:id/shareable-token", async (req, res) => {
       .where(sql`itinerary_id = ${itineraryId} AND member_id IS NULL`);
 
     if (!shareableInvite) {
-      return res.status(404).json({ message: "No shareable invite found for this event" });
+      return fail(res, 404, "No shareable invite found for this event");
     }
 
     res.json({ inviteToken: shareableInvite.inviteToken });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1397,7 +1398,7 @@ router.get("/itineraries/:id/guest-list", async (req, res) => {
     // Verify itinerary exists
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get all RSVPs for this itinerary
@@ -1473,7 +1474,7 @@ router.get("/itineraries/:id/guest-list", async (req, res) => {
     res.json({ guestList, counts });
   } catch (error: any) {
     console.error('[Guest List] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1482,7 +1483,7 @@ router.get("/itineraries/:id/invite-summary", isAuthenticated, async (req, res) 
   try {
     const itinerary = await storage.getItinerary(req.params.id);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Get all invites for this itinerary
@@ -1516,7 +1517,7 @@ router.get("/itineraries/:id/invite-summary", isAuthenticated, async (req, res) 
       totalResponses: rsvps.length,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -1530,24 +1531,24 @@ router.get("/itineraries/:id/availability-insights", isAuthenticated, async (req
     // Get the itinerary
     const itinerary = await storage.getItinerary(id);
     if (!itinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     // Only organizers can see availability insights
     if (itinerary.groupId) {
       const group = await storage.getGroup(itinerary.groupId);
       if (!group || group.userId !== userId) {
-        return res.status(403).json({ message: "Only the organizer can view availability insights" });
+        return fail(res, 403, "Only the organizer can view availability insights");
       }
     } else if (itinerary.createdBy !== userId) {
-      return res.status(403).json({ message: "Only the event creator can view availability insights" });
+      return fail(res, 403, "Only the event creator can view availability insights");
     }
 
     const insights = await analyzeEventAvailability(id);
     res.json(insights);
   } catch (error: any) {
     console.error('[Availability Insights] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

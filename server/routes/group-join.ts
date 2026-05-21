@@ -15,6 +15,7 @@ import rateLimit from "express-rate-limit";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
+import { fail } from "../lib/responses";
 import {
   members as membersTable,
   users,
@@ -93,7 +94,7 @@ router.get("/groups/by-link/:shareableLink", publicEndpointLimiter, async (req, 
   try {
     const group = await storage.getGroupByShareableLink(req.params.shareableLink);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (!group.inviteLinkOpen) {
@@ -119,7 +120,7 @@ router.get("/groups/by-link/:shareableLink", publicEndpointLimiter, async (req, 
 
     res.json(safeGroup);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -129,7 +130,7 @@ router.get("/groups/join-preview/:shareableLink", publicEndpointLimiter, async (
   try {
     const group = await storage.getGroupByShareableLink(req.params.shareableLink);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (!group.inviteLinkOpen) {
@@ -196,7 +197,7 @@ router.get("/groups/join-preview/:shareableLink", publicEndpointLimiter, async (
     });
   } catch (error: any) {
     console.error("[JoinPreview] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -211,7 +212,7 @@ router.post("/groups/:id/join", async (req, res) => {
 
     const group = await storage.getGroup(req.params.id);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (!group.inviteLinkOpen && shareableLink) {
@@ -230,15 +231,15 @@ router.post("/groups/:id/join", async (req, res) => {
         .where(sql`claim_token = ${inviteToken}`);
 
       if (!memberByToken || memberByToken.groupId !== req.params.id) {
-        return res.status(403).json({ message: "Invalid invite token" });
+        return fail(res, 403, "Invalid invite token");
       }
       existingMember = memberByToken;
     } else if (shareableLink) {
       if (group.shareableLink !== shareableLink) {
-        return res.status(403).json({ message: "Invalid invite link" });
+        return fail(res, 403, "Invalid invite link");
       }
       if (!name || !name.trim()) {
-        return res.status(400).json({ message: "Name is required to join" });
+        return fail(res, 400, "Name is required to join");
       }
       const newMember = await storage.createMember({
         groupId: req.params.id,
@@ -249,7 +250,7 @@ router.post("/groups/:id/join", async (req, res) => {
       });
       return res.json(newMember);
     } else {
-      return res.status(403).json({ message: "Invite token or email required to join" });
+      return fail(res, 403, "Invite token or email required to join");
     }
 
     if (existingMember) {
@@ -260,9 +261,9 @@ router.post("/groups/:id/join", async (req, res) => {
       return res.json(updatedMember);
     }
 
-    return res.status(403).json({ message: "Unable to join group" });
+    return fail(res, 403, "Unable to join group");
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 

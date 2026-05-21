@@ -25,6 +25,7 @@ import { eq, sql } from "drizzle-orm";
 import { groups as groupsTable } from "@shared/schema";
 import { generateGroupInsights, saveGroupInsights, dismissInsight, editInsightSuggestion } from "../group-insights";
 import { analyzeGroupTimePatterns } from "../availability-analyzer";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -37,7 +38,7 @@ router.get("/groups/:groupId/learning-insights", isAuthenticated, async (req: an
     // Verify user has access to the group
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Check if user is group owner or member
@@ -46,7 +47,7 @@ router.get("/groups/:groupId/learning-insights", isAuthenticated, async (req: an
     const isMember = members.some(m => m.userId === userId);
 
     if (!isOwner && !isMember) {
-      return res.status(403).json({ message: "Not authorized to view this group's insights" });
+      return fail(res, 403, "Not authorized to view this group's insights");
     }
 
     // Get rejected venues (auto-blacklisted)
@@ -118,7 +119,7 @@ router.get("/groups/:groupId/learning-insights", isAuthenticated, async (req: an
     });
   } catch (error: any) {
     console.error('[Learning Insights] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -131,7 +132,7 @@ router.get("/groups/:groupId/confidence-weights", isAuthenticated, async (req: a
     // Verify user is a member
     const member = await storage.getGroupMemberByUserId(groupId, userId);
     if (!member) {
-      return res.status(403).json({ message: "Not a member of this group" });
+      return fail(res, 403, "Not a member of this group");
     }
 
     // Get weights
@@ -145,7 +146,7 @@ router.get("/groups/:groupId/confidence-weights", isAuthenticated, async (req: a
       .limit(1);
 
     if (!weights) {
-      return res.status(404).json({ message: "No calibration data found for this group" });
+      return fail(res, 404, "No calibration data found for this group");
     }
 
     // Get prediction statistics
@@ -184,7 +185,7 @@ router.get("/groups/:groupId/confidence-weights", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('Error fetching confidence weights:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -197,7 +198,7 @@ router.post("/groups/:groupId/calibrate", isAuthenticated, async (req: any, res)
     // Verify user is the group organizer
     const group = await storage.getGroup(groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the organizer can trigger calibration" });
+      return fail(res, 403, "Only the organizer can trigger calibration");
     }
 
     // Run calibration
@@ -213,13 +214,13 @@ router.post("/groups/:groupId/calibrate", isAuthenticated, async (req: any, res)
     const result = await calibrateGroupWeights(groupId);
 
     if (!result) {
-      return res.status(400).json({ message: "Calibration failed - insufficient data" });
+      return fail(res, 400, "Calibration failed - insufficient data");
     }
 
     res.json(result);
   } catch (error: any) {
     console.error('Error running calibration:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -231,16 +232,16 @@ router.delete("/groups/:groupId/rejected-venues", isAuthenticated, async (req: a
     const { venueName } = req.body;
 
     if (!venueName) {
-      return res.status(400).json({ message: "Venue name is required" });
+      return fail(res, 400, "Venue name is required");
     }
 
     // Verify user is the group owner
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group owner can remove venues from the blacklist" });
+      return fail(res, 403, "Only the group owner can remove venues from the blacklist");
     }
 
     // Remove the venue from the rejectedVenues array
@@ -259,7 +260,7 @@ router.delete("/groups/:groupId/rejected-venues", isAuthenticated, async (req: a
     });
   } catch (error: any) {
     console.error('[Remove Rejected Venue] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -273,7 +274,7 @@ router.get("/groups/:groupId/insights", isAuthenticated, async (req: any, res) =
     // Verify user has access to the group
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     // Check if user is group owner or member
@@ -282,7 +283,7 @@ router.get("/groups/:groupId/insights", isAuthenticated, async (req: any, res) =
     const isMember = members.some(m => m.userId === userId);
 
     if (!isOwner && !isMember) {
-      return res.status(403).json({ message: "Not authorized to view this group's insights" });
+      return fail(res, 403, "Not authorized to view this group's insights");
     }
 
     // Check if we need to regenerate insights
@@ -315,7 +316,7 @@ router.get("/groups/:groupId/insights", isAuthenticated, async (req: any, res) =
     });
   } catch (error: any) {
     console.error('[Group Insights] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -329,15 +330,15 @@ router.post("/groups/:groupId/insights/dismiss", isAuthenticated, async (req: an
     // Verify user is group owner
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only group owners can dismiss insights" });
+      return fail(res, 403, "Only group owners can dismiss insights");
     }
 
     if (!['budget', 'availability', 'activityTypes'].includes(insightType)) {
-      return res.status(400).json({ message: "Invalid insight type" });
+      return fail(res, 400, "Invalid insight type");
     }
 
     await dismissInsight(groupId, insightType as 'budget' | 'availability' | 'activityTypes');
@@ -345,7 +346,7 @@ router.post("/groups/:groupId/insights/dismiss", isAuthenticated, async (req: an
     res.json({ success: true });
   } catch (error: any) {
     console.error('[Dismiss Insight] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -359,15 +360,15 @@ router.patch("/groups/:groupId/insights/:insightType", isAuthenticated, async (r
     // Verify user is group owner
     const group = await storage.getGroup(groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only group owners can edit insights" });
+      return fail(res, 403, "Only group owners can edit insights");
     }
 
     if (!['budget', 'availability', 'activityTypes'].includes(insightType)) {
-      return res.status(400).json({ message: "Invalid insight type" });
+      return fail(res, 400, "Invalid insight type");
     }
 
     await editInsightSuggestion(groupId, insightType as 'budget' | 'availability' | 'activityTypes', suggestion);
@@ -375,7 +376,7 @@ router.patch("/groups/:groupId/insights/:insightType", isAuthenticated, async (r
     res.json({ success: true });
   } catch (error: any) {
     console.error('[Edit Insight] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

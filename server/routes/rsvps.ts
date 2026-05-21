@@ -3,7 +3,7 @@
  *
  * Handles all RSVP-related endpoints:
  *   PATCH  /api/members/:id/rsvp                          — member RSVP via claim token
- *   POST   /api/rsvps                                     — submit RSVP with invite token
+ *   POST   /api/rsvps              — submit RSVP with invite token
  *   GET    /api/rsvps/itinerary/:itineraryId/member/:memberId — get RSVP for member
  *   GET    /api/rsvps/itinerary/:itineraryId              — get all RSVPs (authenticated)
  *   POST   /api/itineraries/:itineraryId/organizer-rsvp   — organizer RSVP
@@ -27,6 +27,7 @@ import { Router } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
+import { fail } from "../lib/responses";
 import {
   rsvps as rsvpsTable,
   itineraryInvites,
@@ -59,20 +60,20 @@ router.patch("/members/:id/rsvp", requireMemberAccess(), async (req: any, res) =
     const { rsvpStatus, claimToken } = req.body;
 
     if (!claimToken) {
-      return res.status(401).json({ message: "Claim token required" });
+      return fail(res, 401, "Claim token required");
     }
 
     if (!["going", "maybe", "not_going"].includes(rsvpStatus)) {
-      return res.status(400).json({ message: "Invalid RSVP status" });
+      return fail(res, 400, "Invalid RSVP status");
     }
 
     const member = await storage.getMember(req.params.id);
     if (!member) {
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     if (member.claimToken !== claimToken) {
-      return res.status(401).json({ message: "Invalid claim token" });
+      return fail(res, 401, "Invalid claim token");
     }
 
     const updatedMember = await storage.updateMember(req.params.id, {
@@ -81,7 +82,7 @@ router.patch("/members/:id/rsvp", requireMemberAccess(), async (req: any, res) =
 
     res.json(updatedMember);
   } catch (error: any) {
-    res.status(400).json({ message: error.message });
+    fail(res, 400, error.message);
   }
 });
 
@@ -106,7 +107,7 @@ router.post("/rsvps", async (req, res) => {
 
     if (invites.length === 0) {
       console.log('[RSVP] Invalid invite token:', inviteToken);
-      return res.status(401).json({ message: "Invalid invite token" });
+      return fail(res, 401, "Invalid invite token");
     }
 
     const invite = invites[0];
@@ -114,18 +115,18 @@ router.post("/rsvps", async (req, res) => {
 
     if (invite.itineraryId !== itineraryId) {
       console.log('[RSVP] Itinerary mismatch:', { inviteItineraryId: invite.itineraryId, requestedItineraryId: itineraryId });
-      return res.status(403).json({ message: "This invite is not valid for this itinerary" });
+      return fail(res, 403, "This invite is not valid for this itinerary");
     }
 
     if (claimedMemberId && invite.memberId && claimedMemberId !== invite.memberId) {
       console.log('[RSVP] Member mismatch:', { inviteMemberId: invite.memberId, claimedMemberId });
-      return res.status(403).json({ message: "This invite is not valid for this member" });
+      return fail(res, 403, "This invite is not valid for this member");
     }
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
       console.log('[RSVP] Itinerary not found:', itineraryId);
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
     console.log('[RSVP] Found itinerary:', { id: itinerary.id, name: itinerary.name, groupId: itinerary.groupId });
 
@@ -140,7 +141,7 @@ router.post("/rsvps", async (req, res) => {
       member = await storage.getMember(memberId);
       if (!member) {
         console.log('[RSVP] Member not found:', memberId);
-        return res.status(404).json({ message: "Member not found" });
+        return fail(res, 404, "Member not found");
       }
       console.log('[RSVP] Found member:', { id: member.id, name: member.name });
     }
@@ -246,7 +247,7 @@ router.post("/rsvps", async (req, res) => {
     res.json({ ...rsvp, gangsAllHere, isCompletingVote });
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -257,7 +258,7 @@ router.get("/rsvps/itinerary/:itineraryId/member/:memberId", async (req, res) =>
     const inviteToken = req.query.inviteToken as string;
 
     if (!inviteToken) {
-      return res.status(401).json({ message: "Invite token required" });
+      return fail(res, 401, "Invite token required");
     }
 
     const invites = await db
@@ -266,35 +267,35 @@ router.get("/rsvps/itinerary/:itineraryId/member/:memberId", async (req, res) =>
       .where(sql`invite_token = ${inviteToken}`);
 
     if (invites.length === 0) {
-      return res.status(401).json({ message: "Invalid invite token" });
+      return fail(res, 401, "Invalid invite token");
     }
 
     const invite = invites[0];
 
     if (invite.itineraryId !== itineraryId) {
-      return res.status(403).json({ message: "This invite is not valid for this itinerary" });
+      return fail(res, 403, "This invite is not valid for this itinerary");
     }
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     if (invite.memberId && invite.memberId !== memberId) {
-      return res.status(403).json({ message: "This invite is not valid for this member" });
+      return fail(res, 403, "This invite is not valid for this member");
     }
 
     if (!invite.memberId) {
       const group = await storage.getGroup(itinerary.groupId);
       const member = await storage.getMember(memberId);
       if (!group || !member) {
-        return res.status(404).json({ message: "Group or member not found" });
+        return fail(res, 404, "Group or member not found");
       }
       const organizer = group.userId ? await storage.getUser(group.userId) : null;
       const isOrganizer = member.userId === group.userId ||
         (organizer?.email && member.email && member.email.toLowerCase() === organizer.email.toLowerCase());
       if (!isOrganizer) {
-        return res.status(403).json({ message: "This invite is only valid for the organizer" });
+        return fail(res, 403, "This invite is only valid for the organizer");
       }
     }
 
@@ -313,13 +314,13 @@ router.get("/rsvps/itinerary/:itineraryId/member/:memberId", async (req, res) =>
     }
 
     if (rsvps.length === 0) {
-      return res.status(404).json({ message: "RSVP not found" });
+      return fail(res, 404, "RSVP not found");
     }
 
     res.json(rsvps[0]);
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -334,7 +335,7 @@ router.get("/rsvps/itinerary/:itineraryId", isAuthenticated, async (req, res) =>
     res.json(rsvps);
   } catch (error: any) {
     console.error('[RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -355,23 +356,23 @@ router.post("/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     if (itinerary.isStandalone) {
       if (itinerary.createdBy !== userId) {
-        return res.status(403).json({ message: "Only the event creator can use this endpoint" });
+        return fail(res, 403, "Only the event creator can use this endpoint");
       }
     } else {
       if (!itinerary.groupId) {
-        return res.status(404).json({ message: "Group not found for this itinerary" });
+        return fail(res, 404, "Group not found for this itinerary");
       }
       const group = await storage.getGroup(itinerary.groupId);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
       if (group.userId !== userId) {
-        return res.status(403).json({ message: "Only the group organizer can use this endpoint" });
+        return fail(res, 403, "Only the group organizer can use this endpoint");
       }
     }
 
@@ -412,7 +413,7 @@ router.post("/itineraries/:itineraryId/organizer-rsvp", isAuthenticated, async (
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Organizer RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -428,22 +429,22 @@ router.post("/rsvps/:rsvpId/approve", isAuthenticated, async (req: any, res) => 
       .where(sql`id = ${rsvpId}`);
 
     if (rsvps.length === 0) {
-      return res.status(404).json({ message: "RSVP not found" });
+      return fail(res, 404, "RSVP not found");
     }
 
     const rsvp = rsvps[0];
     const itinerary = await storage.getItinerary(rsvp.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group organizer can approve guest RSVPs" });
+      return fail(res, 403, "Only the group organizer can approve guest RSVPs");
     }
 
     const updated = await db
@@ -455,7 +456,7 @@ router.post("/rsvps/:rsvpId/approve", isAuthenticated, async (req: any, res) => 
     res.json(updated[0]);
   } catch (error: any) {
     console.error('[Approve RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -471,22 +472,22 @@ router.post("/rsvps/:rsvpId/deny", isAuthenticated, async (req: any, res) => {
       .where(sql`id = ${rsvpId}`);
 
     if (rsvps.length === 0) {
-      return res.status(404).json({ message: "RSVP not found" });
+      return fail(res, 404, "RSVP not found");
     }
 
     const rsvp = rsvps[0];
     const itinerary = await storage.getItinerary(rsvp.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group) {
-      return res.status(404).json({ message: "Group not found" });
+      return fail(res, 404, "Group not found");
     }
 
     if (group.userId !== userId) {
-      return res.status(403).json({ message: "Only the group organizer can deny guest RSVPs" });
+      return fail(res, 403, "Only the group organizer can deny guest RSVPs");
     }
 
     await db
@@ -496,7 +497,7 @@ router.post("/rsvps/:rsvpId/deny", isAuthenticated, async (req: any, res) => {
     res.json({ message: "RSVP denied and removed" });
   } catch (error: any) {
     console.error('[Deny RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -516,24 +517,24 @@ router.patch("/rsvps/:id", isAuthenticated, async (req: any, res) => {
       .where(eq(rsvpsTable.id, id));
 
     if (!existingRsvp) {
-      return res.status(404).json({ message: "RSVP not found" });
+      return fail(res, 404, "RSVP not found");
     }
 
     const itinerary = await storage.getItinerary(existingRsvp.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Itinerary not found" });
+      return fail(res, 404, "Itinerary not found");
     }
 
     const group = await storage.getGroup(itinerary.groupId);
     if (!group || group.userId !== userId) {
-      return res.status(403).json({ message: "Only the organizer can update RSVPs" });
+      return fail(res, 403, "Only the organizer can update RSVPs");
     }
 
     const updated = await storage.updateRsvp(id, { response });
     res.json(updated);
   } catch (error: any) {
     console.error('[Update RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -546,7 +547,7 @@ router.post("/itineraries/:id/rsvps", async (req, res) => {
     const { response, constraintText, memberId, userId, memberName } = validatedData;
 
     if (!memberId && !userId) {
-      return res.status(400).json({ message: "Either memberId or userId is required" });
+      return fail(res, 400, "Either memberId or userId is required");
     }
 
     const rsvp = await storage.createRsvp({
@@ -559,7 +560,7 @@ router.post("/itineraries/:id/rsvps", async (req, res) => {
     });
     res.json(rsvp);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -570,27 +571,27 @@ router.post("/itineraries/:id/rsvp", async (req, res) => {
     const { id: itineraryId } = req.params;
 
     if (!memberId || !memberId.trim()) {
-      return res.status(400).json({ message: "Member ID is required" });
+      return fail(res, 400, "Member ID is required");
     }
     if (!response || !["going", "maybe", "not_going"].includes(response)) {
-      return res.status(400).json({ message: "Valid response required (going, maybe, or not_going)" });
+      return fail(res, 400, "Valid response required (going, maybe, or not_going)");
     }
 
     const member = await storage.getMember(memberId);
     if (!member) {
       console.log(`[Event Invite RSVP] Member not found: ${memberId}`);
-      return res.status(404).json({ message: "Member not found" });
+      return fail(res, 404, "Member not found");
     }
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary) {
       console.log(`[Event Invite RSVP] Itinerary not found: ${itineraryId}`);
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     if (itinerary.groupId && member.groupId !== itinerary.groupId) {
       console.log(`[Event Invite RSVP] Member ${memberId} (group: ${member.groupId}) not in event group: ${itinerary.groupId}`);
-      return res.status(403).json({ message: "Member is not part of this group" });
+      return fail(res, 403, "Member is not part of this group");
     }
 
     const existingRsvps = await db
@@ -641,7 +642,7 @@ router.post("/itineraries/:id/rsvp", async (req, res) => {
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Event Invite RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -652,12 +653,12 @@ router.post("/itineraries/:id/guest-rsvp", async (req, res) => {
     const { id: itineraryId } = req.params;
 
     if (!guestName || !guestName.trim()) {
-      return res.status(400).json({ message: "Guest name is required" });
+      return fail(res, 400, "Guest name is required");
     }
 
     const validResponses = ["yes", "maybe", "no", "going", "not_going"];
     if (!response || !validResponses.includes(response)) {
-      return res.status(400).json({ message: "Valid response required" });
+      return fail(res, 400, "Valid response required");
     }
 
     const normalizedResponse = response === "yes" ? "going" :
@@ -666,7 +667,7 @@ router.post("/itineraries/:id/guest-rsvp", async (req, res) => {
 
     const itinerary = await storage.getItinerary(itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     let existingRsvp = null;
@@ -726,7 +727,7 @@ router.post("/itineraries/:id/guest-rsvp", async (req, res) => {
     res.json(rsvp);
   } catch (error: any) {
     console.error('[Guest RSVP] Error:', error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -747,11 +748,11 @@ router.get("/guest-rsvp/:guestToken", async (req, res) => {
     if (guestRsvp) {
       const itinerary = await storage.getItinerary(guestRsvp.itineraryId);
       if (!itinerary || !itinerary.groupId) {
-        return res.status(404).json({ message: "Event not found" });
+        return fail(res, 404, "Event not found");
       }
       const group = await storage.getGroup(itinerary.groupId);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
       return res.json({ rsvp: guestRsvp, itinerary, group });
     }
@@ -764,12 +765,12 @@ router.get("/guest-rsvp/:guestToken", async (req, res) => {
       .limit(1);
 
     if (!guestInvite) {
-      return res.status(404).json({ message: "Guest invite not found" });
+      return fail(res, 404, "Guest invite not found");
     }
 
     const itinerary = await storage.getItinerary(guestInvite.itineraryId);
     if (!itinerary || !itinerary.groupId) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     const items = await db
@@ -786,7 +787,7 @@ router.get("/guest-rsvp/:guestToken", async (req, res) => {
       group: group ? { name: group.name, emoji: group.emoji } : null,
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -797,7 +798,7 @@ router.post("/guest-rsvp/:guestToken", async (req, res) => {
     const { response } = req.body;
 
     if (!response || !["yes", "maybe", "no"].includes(response)) {
-      return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      return fail(res, 400, "Valid response required (yes, maybe, or no)");
     }
 
     const [guestInvite] = await db
@@ -807,7 +808,7 @@ router.post("/guest-rsvp/:guestToken", async (req, res) => {
       .limit(1);
 
     if (!guestInvite) {
-      return res.status(404).json({ message: "Guest invite not found" });
+      return fail(res, 404, "Guest invite not found");
     }
 
     const [updated] = await db
@@ -818,7 +819,7 @@ router.post("/guest-rsvp/:guestToken", async (req, res) => {
 
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -829,7 +830,7 @@ router.patch("/guest-rsvp/:guestToken", async (req, res) => {
     const { response } = req.body;
 
     if (!response || !["yes", "maybe", "no"].includes(response)) {
-      return res.status(400).json({ message: "Valid response required (yes, maybe, or no)" });
+      return fail(res, 400, "Valid response required (yes, maybe, or no)");
     }
 
     const [updatedRsvp] = await db
@@ -839,12 +840,12 @@ router.patch("/guest-rsvp/:guestToken", async (req, res) => {
       .returning();
 
     if (!updatedRsvp) {
-      return res.status(404).json({ message: "Guest RSVP not found" });
+      return fail(res, 404, "Guest RSVP not found");
     }
 
     res.json(updatedRsvp);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -866,7 +867,7 @@ router.get("/itineraries/:id/rsvps", async (req, res) => {
 
     res.json(enrichedRsvps);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -876,18 +877,18 @@ router.post("/standalone-invite/:inviteToken/rsvp", async (req, res) => {
     const { rsvpStatus } = req.body;
 
     if (!['yes', 'maybe', 'no'].includes(rsvpStatus)) {
-      return res.status(400).json({ message: "Invalid RSVP status" });
+      return fail(res, 400, "Invalid RSVP status");
     }
 
     const invitee = await storage.updateStandaloneEventInviteeRsvp(req.params.inviteToken, rsvpStatus);
 
     if (!invitee) {
-      return res.status(404).json({ message: "Invite not found" });
+      return fail(res, 404, "Invite not found");
     }
 
     res.json({ success: true, rsvpStatus: invitee.rsvpStatus });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

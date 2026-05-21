@@ -6,7 +6,7 @@
  *   GET    /api/standalone-events                        — list user's standalone events
  *   POST   /api/standalone-events                        — create standalone event
  *   GET    /api/standalone-events/:id                    — get standalone event
- *   PATCH  /api/standalone-events/:id                    — update standalone event
+ *   PATCH  /api/standalone-events/:id                 — update standalone event
  *   DELETE /api/standalone-events/:id                    — delete standalone event
  *   POST   /api/standalone-events/:id/invitees           — add invitees
  *   DELETE /api/standalone-events/:id/invitees/:inviteeId — remove invitee
@@ -25,6 +25,7 @@ import { storage } from "../storage";
 import { getUserId } from "../authorization";
 import { itineraryItems, standaloneEventInvitees } from "@shared/schema";
 import { sendItineraryInvite } from "../email-service";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -121,7 +122,7 @@ router.get("/standalone-events", isAuthenticated, async (req: any, res) => {
 
     res.json(eventsWithDetails);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -132,7 +133,7 @@ router.post("/standalone-events", isAuthenticated, async (req: any, res) => {
     const { name, eventDate, status = "draft", timezone } = req.body;
 
     if (!name) {
-      return res.status(400).json({ message: "Event name is required" });
+      return fail(res, 400, "Event name is required");
     }
 
     const event = await storage.createStandaloneEvent(
@@ -148,7 +149,7 @@ router.post("/standalone-events", isAuthenticated, async (req: any, res) => {
 
     res.json(event);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -159,17 +160,17 @@ router.get("/standalone-events/:id", isAuthenticated, async (req: any, res) => {
     const event = await storage.getStandaloneEvent(req.params.id);
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     // Only the organizer can view
     if (event.organizerId !== userId) {
-      return res.status(403).json({ message: "Not authorized to view this event" });
+      return fail(res, 403, "Not authorized to view this event");
     }
 
     res.json(event);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -180,11 +181,11 @@ router.patch("/standalone-events/:id", isAuthenticated, async (req: any, res) =>
     const event = await storage.getStandaloneEvent(req.params.id);
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     if (event.organizerId !== userId) {
-      return res.status(403).json({ message: "Not authorized to update this event" });
+      return fail(res, 403, "Not authorized to update this event");
     }
 
     const { name, eventDate, status } = req.body;
@@ -196,7 +197,7 @@ router.patch("/standalone-events/:id", isAuthenticated, async (req: any, res) =>
     const updated = await storage.updateStandaloneEvent(req.params.id, updates);
     res.json(updated);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -207,17 +208,17 @@ router.delete("/standalone-events/:id", isAuthenticated, async (req: any, res) =
     const event = await storage.getStandaloneEvent(req.params.id);
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     if (event.organizerId !== userId) {
-      return res.status(403).json({ message: "Not authorized to delete this event" });
+      return fail(res, 403, "Not authorized to delete this event");
     }
 
     await storage.deleteStandaloneEvent(req.params.id);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -230,17 +231,17 @@ router.post("/standalone-events/:id/invitees", isAuthenticated, async (req: any,
     const event = await storage.getStandaloneEvent(req.params.id);
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     if (event.organizerId !== userId) {
-      return res.status(403).json({ message: "Not authorized to add invitees to this event" });
+      return fail(res, 403, "Not authorized to add invitees to this event");
     }
 
     const { invitees } = req.body; // Array of { memberId, sourceGroupId, inviteeName, inviteeEmail, userId? }
 
     if (!Array.isArray(invitees) || invitees.length === 0) {
-      return res.status(400).json({ message: "Invitees array is required" });
+      return fail(res, 400, "Invitees array is required");
     }
 
     const added = [];
@@ -258,7 +259,7 @@ router.post("/standalone-events/:id/invitees", isAuthenticated, async (req: any,
 
     res.json(added);
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -272,7 +273,7 @@ router.delete(
       const event = await storage.getStandaloneEvent(req.params.id);
 
       if (!event) {
-        return res.status(404).json({ message: "Event not found" });
+        return fail(res, 404, "Event not found");
       }
 
       if (event.organizerId !== userId) {
@@ -284,7 +285,7 @@ router.delete(
       await storage.removeStandaloneEventInvitee(req.params.inviteeId);
       res.json({ success: true });
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   }
 );
@@ -296,11 +297,11 @@ router.post("/standalone-events/:id/send-invites", isAuthenticated, async (req: 
     const event = await storage.getStandaloneEvent(req.params.id);
 
     if (!event) {
-      return res.status(404).json({ message: "Event not found" });
+      return fail(res, 404, "Event not found");
     }
 
     if (event.organizerId !== userId) {
-      return res.status(403).json({ message: "Not authorized to send invites for this event" });
+      return fail(res, 403, "Not authorized to send invites for this event");
     }
 
     const sentAt = new Date();
@@ -386,7 +387,7 @@ router.post("/standalone-events/:id/send-invites", isAuthenticated, async (req: 
     });
   } catch (error: any) {
     console.error("[Standalone Event Send] Error:", error);
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 
@@ -396,7 +397,7 @@ router.get("/standalone-invite/:inviteToken", async (req, res) => {
     const result = await storage.getStandaloneEventByInviteToken(req.params.inviteToken);
 
     if (!result) {
-      return res.status(404).json({ message: "Invite not found" });
+      return fail(res, 404, "Invite not found");
     }
 
     const items = await db
@@ -440,7 +441,7 @@ router.get("/standalone-invite/:inviteToken", async (req, res) => {
       })),
     });
   } catch (error: any) {
-    res.status(500).json({ message: safeError(error) });
+    fail(res, 500, safeError(error));
   }
 });
 

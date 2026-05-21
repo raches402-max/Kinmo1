@@ -12,6 +12,7 @@ import { Router } from "express";
 import { isAuthenticated } from "../googleAuth";
 import { getUserId, isAdminEmail } from "../authorization";
 import { storage } from "../storage";
+import { fail } from "../lib/responses";
 
 const router = Router();
 
@@ -23,20 +24,20 @@ router.get("/user", isAuthenticated, async (req: any, res) => {
 
     if (!userId) {
       console.error("[Auth] No user ID found in claims:", req.user);
-      return res.status(401).json({ message: "Invalid session - no user ID in claims" });
+      return fail(res, 401, "Invalid session - no user ID in claims");
     }
 
     const user = await storage.getUser(userId);
 
     if (!user) {
       console.error(`[Auth] User not found in database: ${userId}`);
-      return res.status(404).json({ message: "User not found" });
+      return fail(res, 404, "User not found");
     }
 
     res.json({ ...user, isAdmin: isAdminEmail(user.email) });
   } catch (error) {
     console.error("[Auth] Error fetching user:", error);
-    res.status(500).json({ message: "Internal server error" });
+    fail(res, 500, "Internal server error");
   }
 });
 

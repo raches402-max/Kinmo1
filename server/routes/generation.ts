@@ -21,6 +21,7 @@ import pLimit from "p-limit";
 import { isAuthenticated } from "../googleAuth";
 import { requireGroupOwnership, getUserId } from "../authorization";
 import { storage } from "../storage";
+import { fail } from "../lib/responses";
 import {
   activities as activitiesTable,
   venueVisitHistory,
@@ -62,13 +63,13 @@ router.post("/groups/:id/retry-generation", isAuthenticated, async (req: any, re
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       // Verify user owns this group
       const userId = await getUserId(req);
       if (group.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized to modify this group" });
+        return fail(res, 403, "Not authorized to modify this group");
       }
 
       // Accept temporary instructions from the request body
@@ -113,7 +114,7 @@ router.post("/groups/:id/retry-generation", isAuthenticated, async (req: any, re
 
       res.json({ success: true, message: "Activity generation restarted" });
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
     */
   });
@@ -124,13 +125,13 @@ router.post("/groups/:id/activities/cancel-generation", isAuthenticated, async (
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       // Verify user owns this group
       const userId = await getUserId(req);
       if (group.userId !== userId) {
-        return res.status(403).json({ message: "Not authorized to modify this group" });
+        return fail(res, 403, "Not authorized to modify this group");
       }
 
       // Update status to failed with cancellation message (idempotent - safe to call multiple times)
@@ -138,7 +139,7 @@ router.post("/groups/:id/activities/cancel-generation", isAuthenticated, async (
 
       res.json({ success: true, message: "Activity generation cancelled" });
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -148,7 +149,7 @@ router.post("/groups/:id/activities/regenerate-category", isAuthenticated, requi
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       // Validate request body
@@ -232,7 +233,7 @@ router.post("/groups/:id/activities/regenerate-category", isAuthenticated, requi
         // Refresh group data to get latest rejected venues
         const refreshedGroup = await storage.getGroup(req.params.id);
         if (!refreshedGroup) {
-          return res.status(404).json({ message: "Group not found" });
+          return fail(res, 404, "Group not found");
         }
         const rejectedVenues = refreshedGroup.rejectedVenues || [];
         const rejectedSet = new Set(rejectedVenues.map(v => v.toLowerCase()));
@@ -463,7 +464,7 @@ router.post("/groups/:id/activities/regenerate-category", isAuthenticated, requi
       if (allValidActivities.length < neededCount) {
         const errorMsg = `Could not find enough quality venues after ${maxAttempts} attempts. Found ${allValidActivities.length}/${neededCount} venues. Try adjusting search radius or preferences.`;
         console.error(`[Category Regen] ${errorMsg}`);
-        return res.status(400).json({ message: errorMsg });
+        return fail(res, 400, errorMsg);
       }
 
       // Delete unchecked activities in this category
@@ -500,7 +501,7 @@ router.post("/groups/:id/activities/regenerate-category", isAuthenticated, requi
       res.json(newActivities);
     } catch (error: any) {
       console.error("[Category Regen] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -510,7 +511,7 @@ router.post("/groups/:id/generate-category", isAuthenticated, async (req: any, r
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       // Verify user is a member of this group (or owns it)
@@ -519,12 +520,12 @@ router.post("/groups/:id/generate-category", isAuthenticated, async (req: any, r
       const member = await storage.getGroupMemberByUserId(req.params.id, userId);
 
       if (!isOwner && !member) {
-        return res.status(403).json({ message: "Not authorized to access this group" });
+        return fail(res, 403, "Not authorized to access this group");
       }
 
       // Check if members are allowed to create events
       if (!isOwner && member && !group.membersCanCreateEvents) {
-        return res.status(403).json({ message: "Only the group organizer can discover venues for this group" });
+        return fail(res, 403, "Only the group organizer can discover venues for this group");
       }
 
       // Fetch member group preferences for fallback chain
@@ -581,19 +582,19 @@ router.post("/groups/:id/generate-category", isAuthenticated, async (req: any, r
       }
 
       if (!categoriesToProcess.length) {
-        return res.status(400).json({ message: "No categories provided or all requested categories filtered out by preferences" });
+        return fail(res, 400, "No categories provided or all requested categories filtered out by preferences");
       }
 
       // Validate all categories
       const validCategories = ['meal', 'cafes', 'drinks', 'dessert', 'experiences'];
       for (const cat of categoriesToProcess) {
         if (!validCategories.includes(cat)) {
-          return res.status(400).json({ message: `Invalid category: ${cat}` });
+          return fail(res, 400, `Invalid category: ${cat}`);
         }
       }
 
       if (sortBy && !['distance', 'rating'].includes(sortBy)) {
-        return res.status(400).json({ message: "Invalid sortBy parameter. Must be 'distance' or 'rating'" });
+        return fail(res, 400, "Invalid sortBy parameter. Must be 'distance' or 'rating'");
       }
 
       if (tempInstructions) {
@@ -1014,7 +1015,7 @@ router.post("/groups/:id/generate-category", isAuthenticated, async (req: any, r
       }
     } catch (error: any) {
       console.error("[Category Generate] Error:", error);
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
@@ -1024,7 +1025,7 @@ router.post("/groups/:id/activities/from-category-result", isAuthenticated, asyn
     try {
       const group = await storage.getGroup(req.params.id);
       if (!group) {
-        return res.status(404).json({ message: "Group not found" });
+        return fail(res, 404, "Group not found");
       }
 
       // Any authenticated user can add to group favorites (not just owner)
@@ -1049,7 +1050,7 @@ router.post("/groups/:id/activities/from-category-result", isAuthenticated, asyn
 
       res.json(votingEvent);
     } catch (error: any) {
-      res.status(500).json({ message: safeError(error) });
+      fail(res, 500, safeError(error));
     }
   });
 
