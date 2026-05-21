@@ -1,37 +1,15 @@
 import { db } from "../db";
 import {
   venueVisitHistory,
-  itineraries,
-  itineraryItems,
   rsvps,
-  type Itinerary,
-  type ItineraryItem,
   type InsertVenueVisitHistory,
 } from "@shared/schema";
 import { eq, and, desc, inArray, isNotNull } from "drizzle-orm";
-
-// Local helper: inlines a getItinerary lookup so this module doesn't depend on
-// the itineraries storage domain (not yet extracted).
-async function fetchItineraryWithItems(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined> {
-  const [itinerary] = await db
-    .select()
-    .from(itineraries)
-    .where(eq(itineraries.id, id));
-
-  if (!itinerary) return undefined;
-
-  const items = await db
-    .select()
-    .from(itineraryItems)
-    .where(eq(itineraryItems.itineraryId, id))
-    .orderBy(itineraryItems.orderIndex);
-
-  return { ...itinerary, items };
-}
+import { itinerariesStorage } from "./itineraries";
 
 export const venueVisitTrackingStorage = {
   async logVenueVisits(itineraryId: string, eventDate: Date): Promise<void> {
-    const itinerary = await fetchItineraryWithItems(itineraryId);
+    const itinerary = await itinerariesStorage.getItinerary(itineraryId);
     if (!itinerary) {
       console.log(`[Visit Tracking] Itinerary ${itineraryId} not found, skipping visit logging`);
       return;

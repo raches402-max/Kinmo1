@@ -11,26 +11,7 @@ import {
   type ItineraryItem,
 } from "@shared/schema";
 import { eq, and, or, desc, asc, inArray, isNull, gte, sql } from "drizzle-orm";
-
-// Local helper: inlines a getItinerary lookup so this module doesn't depend on
-// the itineraries storage domain (not yet extracted). Functionally identical
-// to DatabaseStorage.getItinerary.
-async function fetchItineraryWithItems(id: string): Promise<(Itinerary & { items: ItineraryItem[] }) | undefined> {
-  const [itinerary] = await db
-    .select()
-    .from(itineraries)
-    .where(eq(itineraries.id, id));
-
-  if (!itinerary) return undefined;
-
-  const items = await db
-    .select()
-    .from(itineraryItems)
-    .where(eq(itineraryItems.itineraryId, id))
-    .orderBy(itineraryItems.orderIndex);
-
-  return { ...itinerary, items };
-}
+import { itinerariesStorage } from "./itineraries";
 
 export const autoScheduledEventsStorage = {
   async createAutoScheduledEvent(event: InsertAutoScheduledEvent): Promise<AutoScheduledEvent> {
@@ -72,7 +53,7 @@ export const autoScheduledEventsStorage = {
           return { ...event, itinerary: undefined };
         }
 
-        const itinerary = await fetchItineraryWithItems(event.itineraryId);
+        const itinerary = await itinerariesStorage.getItinerary(event.itineraryId);
         return { ...event, itinerary };
       })
     );
@@ -282,7 +263,7 @@ export const autoScheduledEventsStorage = {
 
         let itinerary = undefined;
         if (event.itineraryId) {
-          itinerary = await fetchItineraryWithItems(event.itineraryId);
+          itinerary = await itinerariesStorage.getItinerary(event.itineraryId);
         }
 
         return {
