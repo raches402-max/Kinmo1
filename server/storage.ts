@@ -45,6 +45,8 @@ import {
   ITINERARY_ITEM_DIRTYING_FIELDS,
   type TrustSource,
 } from "./trust-state";
+import { remindersStorage } from "./storage/reminders";
+import { frequencyFeedbackStorage } from "./storage/frequency-feedback";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -2017,22 +2019,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(rsvps).where(eq(rsvps.id, id));
   }
 
-  // Reminder Logs
-  async logReminder(log: InsertReminderLog): Promise<ReminderLog> {
-    const [reminderLog] = await db
-      .insert(reminderLogs)
-      .values(log)
-      .returning();
-    return reminderLog;
-  }
-
-  async getReminderLogs(itineraryId: string): Promise<ReminderLog[]> {
-    return await db
-      .select()
-      .from(reminderLogs)
-      .where(eq(reminderLogs.itineraryId, itineraryId))
-      .orderBy(desc(reminderLogs.sentAt));
-  }
+  // Reminder Logs — extracted to ./storage/reminders.ts (W4 Slice 3)
+  logReminder = remindersStorage.logReminder;
+  getReminderLogs = remindersStorage.getReminderLogs;
 
   // Auto-scheduled Events
   async createAutoScheduledEvent(event: InsertAutoScheduledEvent): Promise<AutoScheduledEvent> {
@@ -2408,22 +2397,9 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
-  // Frequency Feedback
-  async createFrequencyFeedback(feedback: InsertFrequencyFeedback): Promise<FrequencyFeedback> {
-    const [created] = await db
-      .insert(frequencyFeedback)
-      .values(feedback)
-      .returning();
-    return created;
-  }
-
-  async getGroupFrequencyFeedback(groupId: string): Promise<FrequencyFeedback[]> {
-    return await db
-      .select()
-      .from(frequencyFeedback)
-      .where(eq(frequencyFeedback.groupId, groupId))
-      .orderBy(desc(frequencyFeedback.createdAt));
-  }
+  // Frequency Feedback — extracted to ./storage/frequency-feedback.ts (W4 Slice 3)
+  createFrequencyFeedback = frequencyFeedbackStorage.createFrequencyFeedback;
+  getGroupFrequencyFeedback = frequencyFeedbackStorage.getGroupFrequencyFeedback;
 
   // User Profiles
   async getUserProfile(userId: string): Promise<UserProfile | undefined> {
