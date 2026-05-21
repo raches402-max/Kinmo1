@@ -51,6 +51,8 @@ import { userProfilesStorage } from "./storage/user-profiles";
 import { categorySearchHistoryStorage } from "./storage/category-search-history";
 import { timeSlotsStorage } from "./storage/time-slots";
 import { backupsStorage } from "./storage/backups";
+import { groupCollectionsStorage } from "./storage/group-collections";
+import { hostingStorage } from "./storage/hosting";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -2422,201 +2424,25 @@ export class DatabaseStorage implements IStorage {
   removeTimeSlotVote = timeSlotsStorage.removeTimeSlotVote;
   getItineraryTimeSlotVoteCounts = timeSlotsStorage.getItineraryTimeSlotVoteCounts;
 
-  // Group Collections
-  async createGroupCollection(userId: string, collection: Omit<InsertGroupCollection, 'userId'>): Promise<GroupCollection> {
-    const [result] = await db.insert(groupCollections).values({
-      ...collection,
-      userId,
-    }).returning();
-    return result;
-  }
+  // Group Collections — extracted to ./storage/group-collections.ts (W4 Slice 3)
+  createGroupCollection = groupCollectionsStorage.createGroupCollection;
+  getUserGroupCollections = groupCollectionsStorage.getUserGroupCollections;
+  updateGroupCollection = groupCollectionsStorage.updateGroupCollection;
+  deleteGroupCollection = groupCollectionsStorage.deleteGroupCollection;
+  reorderGroupCollections = groupCollectionsStorage.reorderGroupCollections;
+  updateGroupCollectionAssignment = groupCollectionsStorage.updateGroupCollectionAssignment;
+  reorderGroupsInCollection = groupCollectionsStorage.reorderGroupsInCollection;
 
-  async getUserGroupCollections(userId: string): Promise<GroupCollection[]> {
-    return await db
-      .select()
-      .from(groupCollections)
-      .where(eq(groupCollections.userId, userId))
-      .orderBy(groupCollections.orderIndex);
-  }
-
-  async updateGroupCollection(id: string, updates: UpdateGroupCollection): Promise<GroupCollection> {
-    const [result] = await db
-      .update(groupCollections)
-      .set(updates)
-      .where(eq(groupCollections.id, id))
-      .returning();
-    return result;
-  }
-
-  async deleteGroupCollection(id: string): Promise<void> {
-    // When a collection is deleted, set all groups' collectionId to null
-    await db
-      .update(groups)
-      .set({ collectionId: null })
-      .where(eq(groups.collectionId, id));
-    
-    // Then delete the collection
-    await db.delete(groupCollections).where(eq(groupCollections.id, id));
-  }
-
-  async reorderGroupCollections(collectionOrders: Array<{ id: string; orderIndex: number }>): Promise<void> {
-    // Update each collection's order in a transaction-like manner
-    for (const { id, orderIndex } of collectionOrders) {
-      await db
-        .update(groupCollections)
-        .set({ orderIndex })
-        .where(eq(groupCollections.id, id));
-    }
-  }
-
-  async updateGroupCollectionAssignment(groupId: string, collectionId: string | null, orderIndex: number): Promise<void> {
-    await db
-      .update(groups)
-      .set({ 
-        collectionId, 
-        orderIndex 
-      })
-      .where(eq(groups.id, groupId));
-  }
-
-  async reorderGroupsInCollection(groupOrders: Array<{ id: string; orderIndex: number }>): Promise<void> {
-    // Update each group's order within its collection
-    for (const { id, orderIndex } of groupOrders) {
-      await db
-        .update(groups)
-        .set({ orderIndex })
-        .where(eq(groups.id, id));
-    }
-  }
-
-  // Event Hosting
-  async toggleMemberHosting(memberId: string, openToHosting: boolean): Promise<Member> {
-    const [result] = await db
-      .update(members)
-      .set({ openToHosting })
-      .where(eq(members.id, memberId))
-      .returning();
-    return result;
-  }
-
-  async volunteerToHost(itineraryId: string, memberId: string): Promise<Itinerary> {
-    const [result] = await db
-      .update(itineraries)
-      .set({ hostMemberId: memberId })
-      .where(eq(itineraries.id, itineraryId))
-      .returning();
-    return result;
-  }
-
-  async handOffHost(itineraryId: string, newHostMemberId: string): Promise<Itinerary> {
-    const [result] = await db
-      .update(itineraries)
-      .set({ hostMemberId: newHostMemberId })
-      .where(eq(itineraries.id, itineraryId))
-      .returning();
-    return result;
-  }
-
-  async getHostingAvailableMembers(groupId: string): Promise<Member[]> {
-    const rows = await db
-      .select()
-      .from(members)
-      .innerJoin(groups, eq(members.groupId, groups.id))
-      .where(
-        and(
-          eq(members.groupId, groupId),
-          eq(members.openToHosting, true),
-          isNull(groups.deletedAt)
-        )
-      );
-
-    return rows.map(({ members }) => members);
-  }
-
-  // Host Assignments (rotating host system)
-  async createHostAssignment(groupId: string, memberId: string, itineraryId?: string): Promise<HostAssignment> {
-    const [result] = await db
-      .insert(hostAssignments)
-      .values({
-        groupId,
-        memberId,
-        itineraryId: itineraryId || null,
-        status: 'pending'
-      })
-      .returning();
-    return result;
-  }
-
-  async getPendingHostAssignment(groupId: string): Promise<HostAssignment | undefined> {
-    const [result] = await db
-      .select()
-      .from(hostAssignments)
-      .where(
-        and(
-          eq(hostAssignments.groupId, groupId),
-          eq(hostAssignments.status, 'pending')
-        )
-      )
-      .orderBy(desc(hostAssignments.askedAt))
-      .limit(1);
-    return result;
-  }
-
-  async getMemberHostAssignments(memberId: string): Promise<HostAssignment[]> {
-    return await db
-      .select()
-      .from(hostAssignments)
-      .where(eq(hostAssignments.memberId, memberId))
-      .orderBy(desc(hostAssignments.askedAt));
-  }
-
-  async respondToHostAssignment(assignmentId: string, accepted: boolean, memberId: string): Promise<HostAssignment> {
-    const [result] = await db
-      .update(hostAssignments)
-      .set({
-        status: accepted ? 'accepted' : 'declined',
-        respondedAt: new Date()
-      })
-      .where(
-        and(
-          eq(hostAssignments.id, assignmentId),
-          eq(hostAssignments.memberId, memberId)
-        )
-      )
-      .returning();
-
-    // If accepted, update member's last_hosted_at timestamp
-    if (accepted && result) {
-      await db
-        .update(members)
-        .set({ lastHostedAt: new Date() })
-        .where(eq(members.id, memberId));
-    }
-
-    return result;
-  }
-
-  async getNextHostVolunteer(groupId: string, excludeMemberIds: string[] = []): Promise<Member | null> {
-    let whereConditions = [
-      eq(members.groupId, groupId),
-      eq(members.openToHosting, true),
-      eq(members.isOrganizer, false),
-      isNull(groups.deletedAt)
-    ];
-
-    if (excludeMemberIds.length > 0) {
-      whereConditions.push(sql`${members.id} NOT IN (${sql.join(excludeMemberIds.map(id => sql`${id}`), sql`, `)})`);
-    }
-
-    const rows = await db
-      .select()
-      .from(members)
-      .innerJoin(groups, eq(members.groupId, groups.id))
-      .where(and(...whereConditions))
-      .orderBy(members.lastHostedAt); // null values come first (never hosted)
-
-    return rows.length > 0 ? rows[0].members : null;
-  }
+  // Event Hosting + Host Assignments — extracted to ./storage/hosting.ts (W4 Slice 3)
+  toggleMemberHosting = hostingStorage.toggleMemberHosting;
+  volunteerToHost = hostingStorage.volunteerToHost;
+  handOffHost = hostingStorage.handOffHost;
+  getHostingAvailableMembers = hostingStorage.getHostingAvailableMembers;
+  createHostAssignment = hostingStorage.createHostAssignment;
+  getPendingHostAssignment = hostingStorage.getPendingHostAssignment;
+  getMemberHostAssignments = hostingStorage.getMemberHostAssignments;
+  respondToHostAssignment = hostingStorage.respondToHostAssignment;
+  getNextHostVolunteer = hostingStorage.getNextHostVolunteer;
 
   // Category Search History — extracted to ./storage/category-search-history.ts (W4 Slice 3)
   saveCategorySearch = categorySearchHistoryStorage.saveCategorySearch;

@@ -50,6 +50,8 @@ class, `this` no longer resolves.
 - `category-search-history.ts` — `saveCategorySearch`, `getRecentCategorySearches`
 - `time-slots.ts` — proposed time slots + time slot votes (11 methods)
 - `backups.ts` — database backup operations (5 methods, 217 lines)
+- `group-collections.ts` — group collections + collection assignments (7 methods)
+- `hosting.ts` — event hosting + host assignments (9 methods)
 
 ## Self-references when extracting
 
