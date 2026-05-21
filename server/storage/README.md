@@ -49,12 +49,23 @@ class, `this` no longer resolves.
 - `user-profiles.ts` — `getUserProfile`, `upsertUserProfile`
 - `category-search-history.ts` — `saveCategorySearch`, `getRecentCategorySearches`
 - `time-slots.ts` — proposed time slots + time slot votes (11 methods)
+- `backups.ts` — database backup operations (5 methods, 217 lines)
+
+## Self-references when extracting
+
+Some methods called sibling methods via `this.` inside the original
+`DatabaseStorage` class. When extracting, rewrite those as a direct
+reference to the extracted object (e.g. `backupsStorage.getDatabaseBackup`)
+rather than `this.`. The field-assignment pattern means `this` inside an
+extracted method still resolves to the class instance, which would
+re-route through the delegate field — that works, but referencing the
+exported object directly is clearer and less surprising.
 
 ## What's left
 
-Everything else in `server/storage.ts`. Natural next candidates: database
-backups (medium, has one internal `this.` ref to handle), auto-scheduled
-events (medium), group collections (small), event hosting + host
-assignments, scraped venues import, seen activities, curated venues, member
-favorite venues, user/group saved places, standalone events, availability
-pulses. Then the biggest domains (groups, members, itineraries, rsvps).
+Everything else in `server/storage.ts`. Natural next candidates:
+auto-scheduled events (medium), group collections (small), event hosting +
+host assignments, scraped venues import, seen activities, curated venues,
+member favorite venues, user/group saved places, standalone events,
+availability pulses. Then the biggest domains (groups, members,
+itineraries, rsvps).
