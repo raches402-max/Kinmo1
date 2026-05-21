@@ -68,6 +68,7 @@ import { memberGroupPreferencesStorage } from "./storage/member-group-preference
 import { votingEventsStorage } from "./storage/voting-events";
 import { activitiesStorage } from "./storage/activities";
 import { membersStorage } from "./storage/members";
+import { usersStorage } from "./storage/users";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -289,98 +290,10 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
-  // User operations (required for Replit Auth)
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
-  }
-
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user;
-  }
-
-  async upsertUser(userData: UpsertUser): Promise<User> {
-    // CRITICAL FIX: Use email as the stable identifier, NOT the OAuth sub
-    // This prevents data loss when Replit OAuth provides different subject IDs across sessions
-
-    if (!userData.email) {
-      throw new Error("Email is required for upsertUser");
-    }
-
-    // Step 1: Check if user exists by email (stable identifier)
-    const existingUser = await this.getUserByEmail(userData.email);
-
-    if (existingUser) {
-      // User exists - UPDATE existing record instead of deleting
-      console.log(`[Auth] Updating existing user: ${userData.email}`);
-
-      // Check if OAuth sub changed
-      const newOidcSub = (userData as any).oidcSub || userData.id;
-      const oldOidcSub = existingUser.oidcSub;
-
-      let legacyOidcSubs = existingUser.legacyOidcSubs as string[] || [];
-
-      if (oldOidcSub && newOidcSub !== oldOidcSub) {
-        // OAuth sub changed - track the old one
-        console.log(`[Auth] OAuth sub changed for ${userData.email}: ${oldOidcSub} → ${newOidcSub}`);
-
-        if (!legacyOidcSubs.includes(oldOidcSub)) {
-          legacyOidcSubs = [...legacyOidcSubs, oldOidcSub];
-        }
-      }
-
-      // Update the existing user record
-      const updateData: any = {
-        firstName: userData.firstName || existingUser.firstName,
-        lastName: userData.lastName || existingUser.lastName,
-        profileImageUrl: userData.profileImageUrl || existingUser.profileImageUrl,
-        oidcSub: newOidcSub,
-        legacyOidcSubs: legacyOidcSubs.length > 0 ? legacyOidcSubs as any : null,
-        updatedAt: new Date(),
-      };
-
-      // Handle Google ID if provided
-      if ((userData as any).googleId) {
-        updateData.googleId = (userData as any).googleId;
-      }
-
-      const [updatedUser] = await db
-        .update(users)
-        .set(updateData)
-        .where(eq(users.id, existingUser.id))
-        .returning();
-
-      return updatedUser;
-    } else {
-      // New user - create with stable ID
-      console.log(`[Auth] Creating new user: ${userData.email}`);
-
-      const newOidcSub = (userData as any).oidcSub || userData.id;
-
-      const insertData: any = {
-        id: userData.id, // Keep the stable ID
-        email: userData.email,
-        oidcSub: newOidcSub,
-        firstName: userData.firstName,
-        lastName: userData.lastName,
-        profileImageUrl: userData.profileImageUrl,
-        legacyOidcSubs: null,
-      };
-
-      // Handle Google ID if provided
-      if ((userData as any).googleId) {
-        insertData.googleId = (userData as any).googleId;
-      }
-
-      const [newUser] = await db
-        .insert(users)
-        .values(insertData)
-        .returning();
-
-      return newUser;
-    }
-  }
+  // User operations — extracted to ./storage/users.ts (W4 Slice 3)
+  getUser = usersStorage.getUser;
+  getUserByEmail = usersStorage.getUserByEmail;
+  upsertUser = usersStorage.upsertUser;
 
   // Group operations
   async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name?: string, email?: string}>): Promise<Group> {
