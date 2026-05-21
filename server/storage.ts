@@ -67,6 +67,7 @@ import { venueVisitTrackingStorage } from "./storage/venue-visit-tracking";
 import { memberGroupPreferencesStorage } from "./storage/member-group-preferences";
 import { votingEventsStorage } from "./storage/voting-events";
 import { activitiesStorage } from "./storage/activities";
+import { membersStorage } from "./storage/members";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -619,23 +620,9 @@ export class DatabaseStorage implements IStorage {
     return group || undefined;
   }
 
-  async getGroupMembers(groupId: string): Promise<Member[]> {
-    const rows = await db
-      .select()
-      .from(members)
-      .innerJoin(groups, eq(members.groupId, groups.id))
-      .where(and(eq(members.groupId, groupId), isNull(groups.deletedAt)));
-
-    return rows.map(({ members }) => members);
-  }
-
-  async createMember(insertMember: InsertMember): Promise<Member> {
-    const [member] = await db
-      .insert(members)
-      .values(insertMember)
-      .returning();
-    return member;
-  }
+  // Members — extracted to ./storage/members.ts (W4 Slice 3)
+  getGroupMembers = membersStorage.getGroupMembers;
+  createMember = membersStorage.createMember;
 
   // Activities — extracted to ./storage/activities.ts (W4 Slice 3)
   getGroupActivities = activitiesStorage.getGroupActivities;
@@ -674,12 +661,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(groups.id, groupId));
   }
 
-  async markInvitationsSent(groupId: string): Promise<void> {
-    await db
-      .update(members)
-      .set({ invitationSent: true })
-      .where(eq(members.groupId, groupId));
-  }
+  markInvitationsSent = membersStorage.markInvitationsSent;
 
   updateActivityFeedback = activitiesStorage.updateActivityFeedback;
 
@@ -869,209 +851,18 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getMember(id: string): Promise<Member | undefined> {
-    const [member] = await db.select().from(members).where(eq(members.id, id));
-    return member || undefined;
-  }
+  getMember = membersStorage.getMember;
+  getGroupMemberByUserId = membersStorage.getGroupMemberByUserId;
+  updateMember = membersStorage.updateMember;
+  deleteMember = membersStorage.deleteMember;
 
-  async getGroupMemberByUserId(groupId: string, userId: string): Promise<Member | undefined> {
-    const [row] = await db
-      .select()
-      .from(members)
-      .innerJoin(groups, eq(members.groupId, groups.id))
-      .where(and(
-        eq(members.groupId, groupId),
-        eq(members.userId, userId),
-        isNull(groups.deletedAt)
-      ));
-    return row?.members || undefined;
-  }
-
-  async updateMember(id: string, updates: UpdateMember): Promise<Member> {
-    const [member] = await db
-      .update(members)
-      .set(updates)
-      .where(eq(members.id, id))
-      .returning();
-    return member;
-  }
-
-  async deleteMember(id: string): Promise<void> {
-    // First check if the member is an organizer
-    const member = await this.getMember(id);
-    if (member?.isOrganizer) {
-      throw new Error("Cannot delete organizer member");
-    }
-
-    await db
-      .delete(members)
-      .where(eq(members.id, id));
-  }
+  // Member rollups (availability/budgets effective values)
+  getGroupMembersAvailability = membersStorage.getGroupMembersAvailability;
+  getGroupMembersBudgets = membersStorage.getGroupMembersBudgets;
 
   // Member Group Preferences operations
   getMemberGroupPreferences = memberGroupPreferencesStorage.getMemberGroupPreferences;
   upsertMemberGroupPreferences = memberGroupPreferencesStorage.upsertMemberGroupPreferences;
-
-  async getGroupMembersAvailability(groupId: string): Promise<Array<{
-    memberId: string;
-    memberName: string;
-    userId: string | null;
-    availability: Record<string, { morning: boolean; afternoon: boolean; evening: boolean }> | null;
-  }>> {
-    // Get all members of the group
-    const groupMembers = await this.getGroupMembers(groupId);
-
-    // Get all member group preferences for this group (for overrides)
-    const allGroupPrefs = await db
-      .select()
-      .from(memberGroupPreferences)
-      .where(eq(memberGroupPreferences.groupId, groupId));
-
-    // Get all user profiles for members who have userId (for global defaults)
-    const userIds = groupMembers
-      .filter(m => m.userId)
-      .map(m => m.userId as string);
-
-    let userProfilesMap: Map<string, UserProfile> = new Map();
-    if (userIds.length > 0) {
-      const profiles = await db
-        .select()
-        .from(userProfiles)
-        .where(sql`${userProfiles.userId} IN ${userIds}`);
-
-      profiles.forEach(profile => {
-        userProfilesMap.set(profile.userId, profile);
-      });
-    }
-
-    // Build the result with effective availability for each member
-    return groupMembers.map(member => {
-      // Priority 1: Group-specific override (memberGroupPreferences.availabilityOverride)
-      const groupPref = member.userId
-        ? allGroupPrefs.find(p => p.userId === member.userId)
-        : null;
-
-      if (groupPref?.availabilityOverride) {
-        return {
-          memberId: member.id,
-          memberName: member.name || 'Unknown',
-          userId: member.userId,
-          availability: groupPref.availabilityOverride as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
-        };
-      }
-
-      // Priority 2: Member's personal availability (members.personalAvailability)
-      if (member.personalAvailability) {
-        return {
-          memberId: member.id,
-          memberName: member.name || 'Unknown',
-          userId: member.userId,
-          availability: member.personalAvailability as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
-        };
-      }
-
-      // Priority 3: User profile's global availability (userProfiles.personalAvailability)
-      if (member.userId) {
-        const userProfile = userProfilesMap.get(member.userId);
-        if (userProfile?.personalAvailability) {
-          return {
-            memberId: member.id,
-            memberName: member.name || 'Unknown',
-            userId: member.userId,
-            availability: userProfile.personalAvailability as Record<string, { morning: boolean; afternoon: boolean; evening: boolean }>,
-          };
-        }
-      }
-
-      // No availability set - return null
-      return {
-        memberId: member.id,
-        memberName: member.name || 'Unknown',
-        userId: member.userId,
-        availability: null,
-      };
-    });
-  }
-
-  async getGroupMembersBudgets(groupId: string): Promise<Array<{
-    memberId: string;
-    memberName: string;
-    userId: string | null;
-    budgetMin: number;
-    budgetMax: number;
-  }>> {
-    // Get the group for default budget values
-    const group = await this.getGroup(groupId);
-    const groupBudgetMin = group?.budgetMin ?? 20;
-    const groupBudgetMax = group?.budgetMax ?? 80;
-
-    // Get all members of the group
-    const groupMembers = await this.getGroupMembers(groupId);
-
-    // Get all member group preferences for this group (for overrides)
-    const allGroupPrefs = await db
-      .select()
-      .from(memberGroupPreferences)
-      .where(eq(memberGroupPreferences.groupId, groupId));
-
-    // Get all user profiles for members who have userId (for global defaults)
-    const userIds = groupMembers
-      .filter(m => m.userId)
-      .map(m => m.userId as string);
-
-    let userProfilesMap: Map<string, UserProfile> = new Map();
-    if (userIds.length > 0) {
-      const profiles = await db
-        .select()
-        .from(userProfiles)
-        .where(sql`${userProfiles.userId} IN ${userIds}`);
-
-      profiles.forEach(profile => {
-        userProfilesMap.set(profile.userId, profile);
-      });
-    }
-
-    // Build the result with effective budget for each member
-    return groupMembers.map(member => {
-      // Priority 1: Group-specific override (memberGroupPreferences.budgetOverrideMin/Max)
-      const groupPref = member.userId
-        ? allGroupPrefs.find(p => p.userId === member.userId)
-        : null;
-
-      if (groupPref?.budgetOverrideMin != null && groupPref?.budgetOverrideMax != null) {
-        return {
-          memberId: member.id,
-          memberName: member.name || 'Unknown',
-          userId: member.userId,
-          budgetMin: groupPref.budgetOverrideMin,
-          budgetMax: groupPref.budgetOverrideMax,
-        };
-      }
-
-      // Priority 2: User profile's global budget (userProfiles.budgetMin/Max)
-      if (member.userId) {
-        const userProfile = userProfilesMap.get(member.userId);
-        if (userProfile?.budgetMin != null && userProfile?.budgetMax != null) {
-          return {
-            memberId: member.id,
-            memberName: member.name || 'Unknown',
-            userId: member.userId,
-            budgetMin: userProfile.budgetMin,
-            budgetMax: userProfile.budgetMax,
-          };
-        }
-      }
-
-      // Priority 3: Group's default budget
-      return {
-        memberId: member.id,
-        memberName: member.name || 'Unknown',
-        userId: member.userId,
-        budgetMin: groupBudgetMin,
-        budgetMax: groupBudgetMax,
-      };
-    });
-  }
 
   // Voting Events + Votes — extracted to ./storage/voting-events.ts (W4 Slice 3)
   createVotingEvent = votingEventsStorage.createVotingEvent;
