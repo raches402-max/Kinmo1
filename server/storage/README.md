@@ -57,6 +57,7 @@ class, `this` no longer resolves.
 - `saved-places.ts` — member favorites + user saved + group saved (13 methods)
 - `availability.ts` — availability pulses + responses (17 methods, multiple internal cross-refs rewritten as `availabilityStorage.X`)
 - `standalone-events.ts` — standalone events + invitees (11 methods, one cross-domain `this.getUser` inlined as a direct db query to avoid coupling)
+- `auto-scheduled-events.ts` — auto-scheduled events lifecycle (14 methods, 388 lines). Two `this.getAutoScheduledEvent` self-refs rewritten as `autoScheduledEventsStorage.X`. Two `this.getItinerary` cross-domain refs replaced by a module-local `fetchItineraryWithItems` helper that inlines the same db query, keeping this module decoupled from the not-yet-extracted itineraries domain.
 
 ## Self-references when extracting
 
