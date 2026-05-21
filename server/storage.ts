@@ -61,6 +61,9 @@ import { standaloneEventsStorage } from "./storage/standalone-events";
 import { autoScheduledEventsStorage } from "./storage/auto-scheduled-events";
 import { adminStatsStorage } from "./storage/admin-stats";
 import { scrapedVenuesImportStorage } from "./storage/scraped-venues-import";
+import { rsvpsStorage } from "./storage/rsvps";
+import { preferenceSignalsStorage } from "./storage/preference-signals";
+import { venueVisitTrackingStorage } from "./storage/venue-visit-tracking";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -1353,21 +1356,9 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(votes).where(eq(votes.userId, userId));
   }
 
-  async createPreferenceSignal(signal: InsertPreferenceSignal): Promise<PreferenceSignal> {
-    const [preferenceSignal] = await db
-      .insert(preferenceSignals)
-      .values(signal)
-      .returning();
-    return preferenceSignal;
-  }
-
-  async getGroupPreferenceSignals(groupId: string): Promise<PreferenceSignal[]> {
-    return await db
-      .select()
-      .from(preferenceSignals)
-      .where(eq(preferenceSignals.groupId, groupId))
-      .orderBy(desc(preferenceSignals.createdAt));
-  }
+  // Preference Signals — extracted to ./storage/preference-signals.ts (W4 Slice 3)
+  createPreferenceSignal = preferenceSignalsStorage.createPreferenceSignal;
+  getGroupPreferenceSignals = preferenceSignalsStorage.getGroupPreferenceSignals;
 
   async createItinerary(insertItinerary: InsertItinerary, userId: string, itemsData: Array<{sourceType: 'activity' | 'voting_event' | 'ad_hoc' | 'google_place', sourceId: string, adHocData?: any}>): Promise<Itinerary> {
     // Validation: proposed itineraries must have an eventDate
@@ -1757,166 +1748,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async logVenueVisits(itineraryId: string, eventDate: Date): Promise<void> {
-    const itinerary = await this.getItinerary(itineraryId);
-    if (!itinerary) {
-      console.log(`[Visit Tracking] Itinerary ${itineraryId} not found, skipping visit logging`);
-      return;
-    }
-
-    // Skip visit logging for standalone events (no groupId)
-    if (!itinerary.groupId) {
-      console.log(`[Visit Tracking] Standalone event ${itineraryId}, skipping visit logging`);
-      return;
-    }
-
-    const existingVisits = await db
-      .select({ id: venueVisitHistory.id })
-      .from(venueVisitHistory)
-      .where(eq(venueVisitHistory.itineraryId, itineraryId))
-      .limit(1);
-
-    if (existingVisits.length > 0) {
-      console.log(`[Visit Tracking] Itinerary ${itineraryId} already has venue visits logged, skipping duplicate insert`);
-      return;
-    }
-
-    const visits: InsertVenueVisitHistory[] = itinerary.items
-      .filter(item => item.sourceType !== 'ad_hoc') // Only track actual activities/voting events
-      .map(item => ({
-        groupId: itinerary.groupId!,
-        activityId: item.sourceType === 'activity' ? item.sourceId : null,
-        votingEventId: item.sourceType === 'voting_event' ? item.sourceId : null,
-        venueName: item.venueName,
-        venueType: item.venueType,
-        visitedAt: eventDate,
-        itineraryId,
-      }));
-
-    if (visits.length > 0) {
-      await db.insert(venueVisitHistory).values(visits);
-      console.log(`[Visit Tracking] Logged ${visits.length} venue visit(s) for itinerary ${itineraryId} on ${eventDate.toISOString()}`);
-    } else {
-      console.log(`[Visit Tracking] No trackable venues in itinerary ${itineraryId}`);
-    }
-  }
-
-  async getVenueVisitHistory(groupId: string): Promise<any[]> {
-    const visits = await db
-      .select()
-      .from(venueVisitHistory)
-      .where(eq(venueVisitHistory.groupId, groupId))
-      .orderBy(desc(venueVisitHistory.visitedAt));
-
-    return visits;
-  }
-
-  async getHighlyRatedVenues(groupId: string): Promise<Array<{
-    venueName: string;
-    venueType: string;
-    avgRating: number;
-    visitCount: number;
-    lastVisit: Date;
-    daysSinceLastVisit: number;
-  }>> {
-    // Get all visits for this group with associated post-event feedback
-    const visitsWithRatings = await db
-      .select({
-        venueName: venueVisitHistory.venueName,
-        venueType: venueVisitHistory.venueType,
-        visitedAt: venueVisitHistory.visitedAt,
-        itineraryId: venueVisitHistory.itineraryId,
-      })
-      .from(venueVisitHistory)
-      .where(eq(venueVisitHistory.groupId, groupId))
-      .orderBy(desc(venueVisitHistory.visitedAt));
-
-    // Get all RSVPs with ratings for these visits
-    const itineraryIds = visitsWithRatings.map(v => v.itineraryId);
-    if (itineraryIds.length === 0) {
-      return [];
-    }
-
-    const rsvpsWithFeedback = await db
-      .select({
-        itineraryId: rsvps.itineraryId,
-        postEventFeedback: rsvps.postEventFeedback,
-      })
-      .from(rsvps)
-      .where(
-        and(
-          inArray(rsvps.itineraryId, itineraryIds),
-          isNotNull(rsvps.postEventFeedback)
-        )
-      );
-
-    // Build a map of itineraryId -> ratings
-    const itineraryRatings = new Map<string, number[]>();
-    for (const rsvp of rsvpsWithFeedback) {
-      const feedback = rsvp.postEventFeedback as any;
-      if (feedback && typeof feedback.venueRating === 'number' && feedback.venueRating >= 4) {
-        if (!itineraryRatings.has(rsvp.itineraryId)) {
-          itineraryRatings.set(rsvp.itineraryId, []);
-        }
-        itineraryRatings.get(rsvp.itineraryId)!.push(feedback.venueRating);
-      }
-    }
-
-    // Group visits by venue and calculate averages
-    const venueStats = new Map<string, {
-      venueName: string;
-      venueType: string;
-      ratings: number[];
-      visits: Date[];
-    }>();
-
-    for (const visit of visitsWithRatings) {
-      const ratings = itineraryRatings.get(visit.itineraryId);
-      if (ratings && ratings.length > 0) {
-        const key = `${visit.venueName}|||${visit.venueType}`;
-        if (!venueStats.has(key)) {
-          venueStats.set(key, {
-            venueName: visit.venueName,
-            venueType: visit.venueType,
-            ratings: [],
-            visits: [],
-          });
-        }
-        const stats = venueStats.get(key)!;
-        stats.ratings.push(...ratings);
-        stats.visits.push(new Date(visit.visitedAt));
-      }
-    }
-
-    // Calculate final results with averages and time since last visit
-    const now = new Date();
-    const results = Array.from(venueStats.values())
-      .map(stats => {
-        const avgRating = stats.ratings.reduce((a, b) => a + b, 0) / stats.ratings.length;
-        const lastVisit = new Date(Math.max(...stats.visits.map(d => d.getTime())));
-        const daysSinceLastVisit = Math.floor((now.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24));
-
-        return {
-          venueName: stats.venueName,
-          venueType: stats.venueType,
-          avgRating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
-          visitCount: stats.visits.length,
-          lastVisit,
-          daysSinceLastVisit,
-        };
-      })
-      // Filter for venues ready to revisit (60+ days)
-      .filter(v => v.daysSinceLastVisit >= 60)
-      // Sort by rating (highest first), then by days since last visit
-      .sort((a, b) => {
-        if (Math.abs(a.avgRating - b.avgRating) < 0.1) {
-          return b.daysSinceLastVisit - a.daysSinceLastVisit;
-        }
-        return b.avgRating - a.avgRating;
-      });
-
-    return results;
-  }
+  // Venue Visit Tracking — extracted to ./storage/venue-visit-tracking.ts (W4 Slice 3)
+  logVenueVisits = venueVisitTrackingStorage.logVenueVisits;
+  getVenueVisitHistory = venueVisitTrackingStorage.getVenueVisitHistory;
+  getHighlyRatedVenues = venueVisitTrackingStorage.getHighlyRatedVenues;
 
   async getSavedItineraries(groupId: string): Promise<Array<Itinerary & { items: ItineraryItem[] }>> {
     const foundItineraries = await db
@@ -2004,34 +1839,11 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async createRsvp(rsvp: InsertRsvp): Promise<Rsvp> {
-    const [createdRsvp] = await db
-      .insert(rsvps)
-      .values(rsvp)
-      .returning();
-    return createdRsvp;
-  }
-
-  async getItineraryRsvps(itineraryId: string): Promise<Rsvp[]> {
-    return await db
-      .select()
-      .from(rsvps)
-      .where(eq(rsvps.itineraryId, itineraryId))
-      .orderBy(desc(rsvps.createdAt));
-  }
-
-  async updateRsvp(id: string, updates: Partial<InsertRsvp>): Promise<Rsvp> {
-    const [rsvp] = await db
-      .update(rsvps)
-      .set(updates)
-      .where(eq(rsvps.id, id))
-      .returning();
-    return rsvp;
-  }
-
-  async deleteRsvp(id: string): Promise<void> {
-    await db.delete(rsvps).where(eq(rsvps.id, id));
-  }
+  // RSVPs — extracted to ./storage/rsvps.ts (W4 Slice 3)
+  createRsvp = rsvpsStorage.createRsvp;
+  getItineraryRsvps = rsvpsStorage.getItineraryRsvps;
+  updateRsvp = rsvpsStorage.updateRsvp;
+  deleteRsvp = rsvpsStorage.deleteRsvp;
 
   // Reminder Logs — extracted to ./storage/reminders.ts (W4 Slice 3)
   logReminder = remindersStorage.logReminder;
