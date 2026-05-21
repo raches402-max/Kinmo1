@@ -27,8 +27,10 @@ Kinmo is a full-stack web application that helps friend groups plan and coordina
 │   └── main.tsx        # Entry point
 ├── server/
 │   ├── index.ts        # Express server entry
-│   ├── routes.ts       # All API routes (~600KB, very large)
-│   ├── storage.ts      # Database operations (Drizzle)
+│   ├── routes.ts       # Thin registerRoutes shim; endpoints split into routes/*.ts (W4 Slice 2)
+│   ├── routes/         # 31 domain route modules
+│   ├── storage.ts      # IStorage interface + delegation shell (W4 Slice 3)
+│   ├── storage/        # 26 domain storage modules
 │   ├── openai.ts       # OpenAI integrations
 │   ├── google-places.ts # Google Places API
 │   ├── email-service.ts # Resend email templates
@@ -139,7 +141,7 @@ Required in `.env`:
 
 ## Important Notes
 
-- **Large files**: `routes.ts` (~600KB) and `storage.ts` (~130KB) are very large. Search for specific functions rather than reading entire files.
+- **File layout**: `server/routes.ts` is a thin shim; real endpoints live in `server/routes/*.ts` (31 modules). `server/storage.ts` is an IStorage interface + delegation shell; real DB queries live in `server/storage/*.ts` (26 modules). Find the right domain file before grepping the whole tree.
 - **Soft deletes**: Groups use `deletedAt` for soft deletion
 - **Timezones**: Events use group's `timezone` field (IANA format)
 - **Caching**: Google API results cached in `placesCache` and `searchCache` tables
