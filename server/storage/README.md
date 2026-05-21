@@ -56,6 +56,7 @@ class, `this` no longer resolves.
 - `curated-venues.ts` — `getAllCuratedVenues`, `updateVenueCategory`
 - `saved-places.ts` — member favorites + user saved + group saved (13 methods)
 - `availability.ts` — availability pulses + responses (17 methods, multiple internal cross-refs rewritten as `availabilityStorage.X`)
+- `standalone-events.ts` — standalone events + invitees (11 methods, one cross-domain `this.getUser` inlined as a direct db query to avoid coupling)
 
 ## Self-references when extracting
 
