@@ -64,6 +64,7 @@ import { scrapedVenuesImportStorage } from "./storage/scraped-venues-import";
 import { rsvpsStorage } from "./storage/rsvps";
 import { preferenceSignalsStorage } from "./storage/preference-signals";
 import { venueVisitTrackingStorage } from "./storage/venue-visit-tracking";
+import { memberGroupPreferencesStorage } from "./storage/member-group-preferences";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -971,51 +972,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Member Group Preferences operations
-  async getMemberGroupPreferences(userId: string, groupId: string): Promise<MemberGroupPreferences | undefined> {
-    const [preferences] = await db
-      .select()
-      .from(memberGroupPreferences)
-      .where(
-        and(
-          eq(memberGroupPreferences.userId, userId),
-          eq(memberGroupPreferences.groupId, groupId)
-        )
-      );
-    return preferences || undefined;
-  }
-
-  async upsertMemberGroupPreferences(
-    userId: string,
-    groupId: string,
-    preferences: Partial<InsertMemberGroupPreferences>
-  ): Promise<MemberGroupPreferences> {
-    // First try to get existing preferences
-    const existing = await this.getMemberGroupPreferences(userId, groupId);
-
-    if (existing) {
-      // Update existing preferences
-      const [updated] = await db
-        .update(memberGroupPreferences)
-        .set({
-          ...preferences,
-          updatedAt: new Date(),
-        })
-        .where(eq(memberGroupPreferences.id, existing.id))
-        .returning();
-      return updated;
-    } else {
-      // Create new preferences
-      const [created] = await db
-        .insert(memberGroupPreferences)
-        .values({
-          userId,
-          groupId,
-          ...preferences,
-        })
-        .returning();
-      return created;
-    }
-  }
+  getMemberGroupPreferences = memberGroupPreferencesStorage.getMemberGroupPreferences;
+  upsertMemberGroupPreferences = memberGroupPreferencesStorage.upsertMemberGroupPreferences;
 
   async getGroupMembersAvailability(groupId: string): Promise<Array<{
     memberId: string;
