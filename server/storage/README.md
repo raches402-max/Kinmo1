@@ -54,6 +54,8 @@ class, `this` no longer resolves.
 - `hosting.ts` — event hosting + host assignments (9 methods)
 - `seen-activities.ts` — `markVenuesAsSeen`, `getSeenVenues`
 - `curated-venues.ts` — `getAllCuratedVenues`, `updateVenueCategory`
+- `saved-places.ts` — member favorites + user saved + group saved (13 methods)
+- `availability.ts` — availability pulses + responses (17 methods, multiple internal cross-refs rewritten as `availabilityStorage.X`)
 
 ## Self-references when extracting
 

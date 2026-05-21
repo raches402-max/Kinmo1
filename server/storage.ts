@@ -55,6 +55,8 @@ import { groupCollectionsStorage } from "./storage/group-collections";
 import { hostingStorage } from "./storage/hosting";
 import { seenActivitiesStorage } from "./storage/seen-activities";
 import { curatedVenuesStorage } from "./storage/curated-venues";
+import { savedPlacesStorage } from "./storage/saved-places";
+import { availabilityStorage } from "./storage/availability";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -2963,205 +2965,39 @@ export class DatabaseStorage implements IStorage {
   getAllCuratedVenues = curatedVenuesStorage.getAllCuratedVenues;
   updateVenueCategory = curatedVenuesStorage.updateVenueCategory;
 
-  // Member Favorite Venues
-  async getMemberFavoriteVenues(memberId: string): Promise<MemberFavoriteVenue[]> {
-    const favorites = await db
-      .select()
-      .from(memberFavoriteVenues)
-      .where(eq(memberFavoriteVenues.memberId, memberId))
-      .orderBy(desc(memberFavoriteVenues.addedAt));
+  // Member/User/Group Saved Places — extracted to ./storage/saved-places.ts (W4 Slice 3)
+  getMemberFavoriteVenues = savedPlacesStorage.getMemberFavoriteVenues;
+  getUserAllFavoriteVenues = savedPlacesStorage.getUserAllFavoriteVenues;
+  addMemberFavoriteVenue = savedPlacesStorage.addMemberFavoriteVenue;
+  removeMemberFavoriteVenue = savedPlacesStorage.removeMemberFavoriteVenue;
+  isFavoriteVenue = savedPlacesStorage.isFavoriteVenue;
+  getUserSavedPlaces = savedPlacesStorage.getUserSavedPlaces;
+  addUserSavedPlace = savedPlacesStorage.addUserSavedPlace;
+  removeUserSavedPlace = savedPlacesStorage.removeUserSavedPlace;
+  isUserSavedPlace = savedPlacesStorage.isUserSavedPlace;
+  getGroupSavedPlaces = savedPlacesStorage.getGroupSavedPlaces;
+  addGroupSavedPlace = savedPlacesStorage.addGroupSavedPlace;
+  removeGroupSavedPlace = savedPlacesStorage.removeGroupSavedPlace;
+  isGroupSavedPlace = savedPlacesStorage.isGroupSavedPlace;
 
-    return favorites;
-  }
-
-  // Get all favorite venues for a user across all their group memberships
-  async getUserAllFavoriteVenues(userId: string, category?: string): Promise<Array<MemberFavoriteVenue & { groupId: string; groupName: string; groupEmoji: string | null; memberName: string | null }>> {
-    // Join member_favorite_venues with members and groups to get full context
-    const conditions = [eq(members.userId, userId)];
-    if (category) {
-      conditions.push(eq(memberFavoriteVenues.category, category));
-    }
-
-    const favorites = await db
-      .select({
-        id: memberFavoriteVenues.id,
-        memberId: memberFavoriteVenues.memberId,
-        venuePlaceId: memberFavoriteVenues.venuePlaceId,
-        venueName: memberFavoriteVenues.venueName,
-        venueAddress: memberFavoriteVenues.venueAddress,
-        venuePhotoUrl: memberFavoriteVenues.venuePhotoUrl,
-        category: memberFavoriteVenues.category,
-        addedAt: memberFavoriteVenues.addedAt,
-        groupId: groups.id,
-        groupName: groups.name,
-        groupEmoji: groups.emoji,
-        memberName: members.name,
-      })
-      .from(memberFavoriteVenues)
-      .innerJoin(members, eq(memberFavoriteVenues.memberId, members.id))
-      .innerJoin(groups, eq(members.groupId, groups.id))
-      .where(and(...conditions))
-      .orderBy(desc(memberFavoriteVenues.addedAt));
-
-    return favorites;
-  }
-
-  async addMemberFavoriteVenue(
-    memberId: string,
-    venue: {
-      venuePlaceId: string;
-      venueName: string;
-      venueAddress?: string;
-      venuePhotoUrl?: string;
-      category?: string;
-    }
-  ): Promise<MemberFavoriteVenue> {
-    const [favorite] = await db
-      .insert(memberFavoriteVenues)
-      .values({
-        memberId,
-        venuePlaceId: venue.venuePlaceId,
-        venueName: venue.venueName,
-        venueAddress: venue.venueAddress || null,
-        venuePhotoUrl: venue.venuePhotoUrl || null,
-        category: venue.category || null,
-      })
-      .returning();
-
-    return favorite;
-  }
-
-  async removeMemberFavoriteVenue(memberId: string, venuePlaceId: string): Promise<void> {
-    await db
-      .delete(memberFavoriteVenues)
-      .where(
-        and(
-          eq(memberFavoriteVenues.memberId, memberId),
-          eq(memberFavoriteVenues.venuePlaceId, venuePlaceId)
-        )
-      );
-  }
-
-  async isFavoriteVenue(memberId: string, venuePlaceId: string): Promise<boolean> {
-    const [favorite] = await db
-      .select()
-      .from(memberFavoriteVenues)
-      .where(
-        and(
-          eq(memberFavoriteVenues.memberId, memberId),
-          eq(memberFavoriteVenues.venuePlaceId, venuePlaceId)
-        )
-      )
-      .limit(1);
-
-    return !!favorite;
-  }
-
-  // ==================== User Saved Places ====================
-
-  async getUserSavedPlaces(userId: string, category?: string): Promise<UserSavedPlace[]> {
-    if (category) {
-      return db
-        .select()
-        .from(userSavedPlaces)
-        .where(and(
-          eq(userSavedPlaces.userId, userId),
-          eq(userSavedPlaces.category, category)
-        ))
-        .orderBy(desc(userSavedPlaces.createdAt));
-    }
-    return db
-      .select()
-      .from(userSavedPlaces)
-      .where(eq(userSavedPlaces.userId, userId))
-      .orderBy(desc(userSavedPlaces.createdAt));
-  }
-
-  async addUserSavedPlace(data: InsertUserSavedPlace): Promise<UserSavedPlace> {
-    const [place] = await db
-      .insert(userSavedPlaces)
-      .values(data)
-      .returning();
-    return place;
-  }
-
-  async removeUserSavedPlace(userId: string, placeId: string): Promise<void> {
-    await db
-      .delete(userSavedPlaces)
-      .where(
-        and(
-          eq(userSavedPlaces.userId, userId),
-          eq(userSavedPlaces.id, placeId)
-        )
-      );
-  }
-
-  async isUserSavedPlace(userId: string, googlePlaceId: string): Promise<boolean> {
-    const [place] = await db
-      .select()
-      .from(userSavedPlaces)
-      .where(
-        and(
-          eq(userSavedPlaces.userId, userId),
-          eq(userSavedPlaces.googlePlaceId, googlePlaceId)
-        )
-      )
-      .limit(1);
-    return !!place;
-  }
-
-  // ==================== Group Saved Places ====================
-
-  async getGroupSavedPlaces(groupId: string, category?: string): Promise<GroupSavedPlace[]> {
-    if (category) {
-      return db
-        .select()
-        .from(groupSavedPlaces)
-        .where(and(
-          eq(groupSavedPlaces.groupId, groupId),
-          eq(groupSavedPlaces.category, category)
-        ))
-        .orderBy(desc(groupSavedPlaces.createdAt));
-    }
-    return db
-      .select()
-      .from(groupSavedPlaces)
-      .where(eq(groupSavedPlaces.groupId, groupId))
-      .orderBy(desc(groupSavedPlaces.createdAt));
-  }
-
-  async addGroupSavedPlace(data: InsertGroupSavedPlace): Promise<GroupSavedPlace> {
-    const [place] = await db
-      .insert(groupSavedPlaces)
-      .values(data)
-      .returning();
-    return place;
-  }
-
-  async removeGroupSavedPlace(groupId: string, placeId: string): Promise<void> {
-    await db
-      .delete(groupSavedPlaces)
-      .where(
-        and(
-          eq(groupSavedPlaces.groupId, groupId),
-          eq(groupSavedPlaces.id, placeId)
-        )
-      );
-  }
-
-  async isGroupSavedPlace(groupId: string, googlePlaceId: string): Promise<boolean> {
-    const [place] = await db
-      .select()
-      .from(groupSavedPlaces)
-      .where(
-        and(
-          eq(groupSavedPlaces.groupId, groupId),
-          eq(groupSavedPlaces.googlePlaceId, googlePlaceId)
-        )
-      )
-      .limit(1);
-    return !!place;
-  }
+  // Availability Pulses + Responses — extracted to ./storage/availability.ts (W4 Slice 3)
+  createAvailabilityPulse = availabilityStorage.createAvailabilityPulse;
+  getAvailabilityPulse = availabilityStorage.getAvailabilityPulse;
+  getActivePulseForGroup = availabilityStorage.getActivePulseForGroup;
+  getActivePulseWithResponses = availabilityStorage.getActivePulseWithResponses;
+  updatePulseStatus = availabilityStorage.updatePulseStatus;
+  updatePulseEmailSentAt = availabilityStorage.updatePulseEmailSentAt;
+  updatePulseReminderSentAt = availabilityStorage.updatePulseReminderSentAt;
+  incrementPulseResponseCount = availabilityStorage.incrementPulseResponseCount;
+  expireOldPulses = availabilityStorage.expireOldPulses;
+  createPulseResponse = availabilityStorage.createPulseResponse;
+  updatePulseResponse = availabilityStorage.updatePulseResponse;
+  getPulseResponse = availabilityStorage.getPulseResponse;
+  getPulseResponseByToken = availabilityStorage.getPulseResponseByToken;
+  getPulseResponses = availabilityStorage.getPulseResponses;
+  getAggregatedPulseAvailability = availabilityStorage.getAggregatedPulseAvailability;
+  getPulseResponseWithDetails = availabilityStorage.getPulseResponseWithDetails;
+  getOrCreatePulseResponseForMember = availabilityStorage.getOrCreatePulseResponseForMember;
 
   // ==================== Standalone Events ====================
 
@@ -3340,241 +3176,6 @@ export class DatabaseStorage implements IStorage {
     return { invitee, event };
   }
 
-  // ==================== Availability Pulses ====================
-
-  async createAvailabilityPulse(data: InsertAvailabilityPulse): Promise<AvailabilityPulse> {
-    const [pulse] = await db
-      .insert(availabilityPulses)
-      .values(data)
-      .returning();
-    return pulse;
-  }
-
-  async getAvailabilityPulse(id: string): Promise<AvailabilityPulse | undefined> {
-    const [pulse] = await db
-      .select()
-      .from(availabilityPulses)
-      .where(eq(availabilityPulses.id, id));
-    return pulse;
-  }
-
-  async getActivePulseForGroup(groupId: string): Promise<AvailabilityPulse | undefined> {
-    // status='active' is set on creation but nothing flips it when the deadline
-    // passes, so an expiresAt check is required — otherwise we surface long-past
-    // pulses as "active", which both shows a stale dashboard card and blocks the
-    // organizer from creating a new pulse.
-    const [pulse] = await db
-      .select()
-      .from(availabilityPulses)
-      .where(
-        and(
-          eq(availabilityPulses.groupId, groupId),
-          eq(availabilityPulses.status, 'active'),
-          gt(availabilityPulses.expiresAt, new Date())
-        )
-      )
-      .orderBy(desc(availabilityPulses.createdAt))
-      .limit(1);
-    return pulse;
-  }
-
-  async getActivePulseWithResponses(groupId: string): Promise<{
-    pulse: AvailabilityPulse;
-    responses: AvailabilityPulseResponse[];
-  } | undefined> {
-    const pulse = await this.getActivePulseForGroup(groupId);
-    if (!pulse) return undefined;
-
-    const responses = await db
-      .select()
-      .from(availabilityPulseResponses)
-      .where(eq(availabilityPulseResponses.pulseId, pulse.id));
-
-    return { pulse, responses };
-  }
-
-  async updatePulseStatus(id: string, status: string, completedAt?: Date): Promise<AvailabilityPulse | undefined> {
-    const [pulse] = await db
-      .update(availabilityPulses)
-      .set({
-        status,
-        ...(completedAt && { completedAt })
-      })
-      .where(eq(availabilityPulses.id, id))
-      .returning();
-    return pulse;
-  }
-
-  async updatePulseEmailSentAt(id: string): Promise<void> {
-    await db
-      .update(availabilityPulses)
-      .set({ emailSentAt: new Date() })
-      .where(eq(availabilityPulses.id, id));
-  }
-
-  async updatePulseReminderSentAt(id: string): Promise<void> {
-    await db
-      .update(availabilityPulses)
-      .set({ reminderSentAt: new Date() })
-      .where(eq(availabilityPulses.id, id));
-  }
-
-  async incrementPulseResponseCount(id: string): Promise<void> {
-    await db
-      .update(availabilityPulses)
-      .set({
-        responseCount: sql`${availabilityPulses.responseCount} + 1`
-      })
-      .where(eq(availabilityPulses.id, id));
-  }
-
-  async expireOldPulses(): Promise<number> {
-    const result = await db
-      .update(availabilityPulses)
-      .set({ status: 'expired' })
-      .where(
-        and(
-          eq(availabilityPulses.status, 'active'),
-          lt(availabilityPulses.expiresAt, new Date())
-        )
-      )
-      .returning();
-    return result.length;
-  }
-
-  // ==================== Availability Pulse Responses ====================
-
-  async createPulseResponse(data: InsertAvailabilityPulseResponse): Promise<AvailabilityPulseResponse> {
-    const responseToken = randomBytes(16).toString('hex');
-    const [response] = await db
-      .insert(availabilityPulseResponses)
-      .values({ ...data, responseToken })
-      .returning();
-
-    // Increment the pulse response count
-    await this.incrementPulseResponseCount(data.pulseId);
-
-    return response;
-  }
-
-  async updatePulseResponse(id: string, availability: DateSpecificAvailability, notes?: string): Promise<AvailabilityPulseResponse | undefined> {
-    const [response] = await db
-      .update(availabilityPulseResponses)
-      .set({
-        availability,
-        notes,
-        updatedAt: new Date()
-      })
-      .where(eq(availabilityPulseResponses.id, id))
-      .returning();
-    return response;
-  }
-
-  async getPulseResponse(pulseId: string, memberId: string): Promise<AvailabilityPulseResponse | undefined> {
-    const [response] = await db
-      .select()
-      .from(availabilityPulseResponses)
-      .where(
-        and(
-          eq(availabilityPulseResponses.pulseId, pulseId),
-          eq(availabilityPulseResponses.memberId, memberId)
-        )
-      );
-    return response;
-  }
-
-  async getPulseResponseByToken(responseToken: string): Promise<AvailabilityPulseResponse | undefined> {
-    const [response] = await db
-      .select()
-      .from(availabilityPulseResponses)
-      .where(eq(availabilityPulseResponses.responseToken, responseToken));
-    return response;
-  }
-
-  async getPulseResponses(pulseId: string): Promise<AvailabilityPulseResponse[]> {
-    return await db
-      .select()
-      .from(availabilityPulseResponses)
-      .where(eq(availabilityPulseResponses.pulseId, pulseId));
-  }
-
-  async getAggregatedPulseAvailability(pulseId: string): Promise<{
-    aggregated: Record<string, { morning: number; afternoon: number; evening: number }>;
-    totalResponses: number;
-  }> {
-    const responses = await this.getPulseResponses(pulseId);
-
-    const aggregated: Record<string, { morning: number; afternoon: number; evening: number }> = {};
-
-    for (const response of responses) {
-      const availability = response.availability as DateSpecificAvailability;
-      for (const [dateStr, slots] of Object.entries(availability)) {
-        if (!aggregated[dateStr]) {
-          aggregated[dateStr] = { morning: 0, afternoon: 0, evening: 0 };
-        }
-        if (slots.morning) aggregated[dateStr].morning++;
-        if (slots.afternoon) aggregated[dateStr].afternoon++;
-        if (slots.evening) aggregated[dateStr].evening++;
-      }
-    }
-
-    return { aggregated, totalResponses: responses.length };
-  }
-
-  async getPulseResponseWithDetails(responseToken: string): Promise<{
-    response: AvailabilityPulseResponse;
-    pulse: AvailabilityPulse;
-    member: Member;
-    group: Group;
-  } | undefined> {
-    const response = await this.getPulseResponseByToken(responseToken);
-    if (!response) return undefined;
-
-    const [pulse] = await db
-      .select()
-      .from(availabilityPulses)
-      .where(eq(availabilityPulses.id, response.pulseId));
-    if (!pulse) return undefined;
-
-    const [member] = await db
-      .select()
-      .from(members)
-      .where(eq(members.id, response.memberId));
-    if (!member) return undefined;
-
-    const [group] = await db
-      .select()
-      .from(groups)
-      .where(eq(groups.id, pulse.groupId));
-    if (!group) return undefined;
-
-    return { response, pulse, member, group };
-  }
-
-  async getOrCreatePulseResponseForMember(
-    pulseId: string,
-    memberId: string,
-    userId?: string
-  ): Promise<AvailabilityPulseResponse> {
-    // Check if response already exists
-    const existing = await this.getPulseResponse(pulseId, memberId);
-    if (existing) return existing;
-
-    // Create new response with empty availability
-    const responseToken = randomBytes(16).toString('hex');
-    const [response] = await db
-      .insert(availabilityPulseResponses)
-      .values({
-        pulseId,
-        memberId,
-        userId,
-        availability: {},
-        responseToken,
-      })
-      .returning();
-
-    return response;
-  }
 }
 
 export const storage = new DatabaseStorage();
