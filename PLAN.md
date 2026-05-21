@@ -1,6 +1,6 @@
 # Kinmo V2 — Master Plan
 
-_Last updated: 2026-05-20 (rev 24 — W4 Slice 3 deep push: 14 domains extracted (added saved-places, availability, standalone-events, auto-scheduled-events). storage.ts 4,172 → 2,659 lines (-36%). Auto-scheduled-events was the largest extraction yet at 388 lines and worked cleanly with both internal self-refs and a cross-domain ref handled via a module-local inlined helper. All 8 incremental deploys verified clean via /api/health. Previous rev 23 — W4 Slice 3 push: 10 domains extracted total (`reminders`, `frequency-feedback`, `user-profiles`, `category-search-history`, `time-slots`, `backups`, `group-collections`, `hosting`, `seen-activities`, `curated-venues`). storage.ts 4,172 → 3,579 lines. Each extraction verified live via /api/health (17/17 jobs healthy, db connected). Previous rev 22 — W4 Slice 3 kicked off: scaffold for split storage.ts created at `server/storage/` with README documenting the field-assignment delegation pattern. First two domains extracted (reminders, frequency-feedback). All callsites unchanged. Future sessions continue the pattern through ~17 remaining domains. Previous rev 21 — W8 Sub-track A.7 shipped: post-event feedback dialog now auto-submits attendance on first Yes/No tap by default; opt-in "share more details" link gates the multi-step wizard. Notification copy updated. W8 sub-track A fully closed (A, A.5, A.6, A.7 all live). Previous rev 20 — W8 Sub-track A.6 shipped: dashboard "Past Events" filters to events the user attended (RSVP=yes), section renamed "Events you went to". No server changes — `/api/user/events` already carries per-user RSVP. Group-detail view unchanged. Previous rev 19 — W8 Sub-track A.5 shipped: `processQuorumChecks` now auto-promotes proposed → scheduled when quorum is met, instead of just skipping. New `promoteProposedToScheduled` helper mirrors the manual finalize endpoint. No-op if organizer already finalized. Type-check clean. Previous rev 18 — W8 Sub-track A fully closed: deploy went out (after a Railway GCP-account-suspension outage held it up overnight) and the backfill ran lax (≥1 yes-RSVP) against prod. `venue_visit_history` went 0→6 rows; `itineraries.completed` went 1→7 of 56. Added `--remove` mode to the backfill script (`37a74ef`) as a corrective mechanism for false positives. Live job uses ≥2 threshold (`e2bf7ca`); backfill uses ≥1 with removability — asymmetry by design (adding signal is cheap, removing it is easy via --remove). Follow-ups A.5/A.6/A.7 still ahead. W9 Sub-track A was the prior milestone, `7f33c47..df0f5cf`.)_
+_Last updated: 2026-05-20 (rev 25 — W4 Slice 3 continued: 5 more domains extracted across two commits — admin-stats + scraped-venues-import (`56bb0cb`), then rsvps + preference-signals + venue-visit-tracking (`b181a08`). storage.ts now **1,985 lines** (was 4,148 at session start, -52%). 19 domain files extracted total. 11 deploys verified clean via /api/health. Pattern proven across small, medium, and large domains; both internal self-refs and cross-domain refs (handled via module-local inlined helpers, e.g. `fetchItineraryWithItems` reused between auto-scheduled-events and venue-visit-tracking). Remaining domains are the load-bearing core: users, members, groups, activities, voting events + votes, itineraries (the biggest at ~600 lines), itinerary invites, member-group preferences, saved itineraries. These have heavier cross-method coupling so future extractions warrant fresh sessions one big domain at a time. Previous rev 24 — W4 Slice 3 deep push: 14 domains extracted (added saved-places, availability, standalone-events, auto-scheduled-events). storage.ts 4,172 → 2,659 lines (-36%). Auto-scheduled-events was the largest extraction yet at 388 lines and worked cleanly with both internal self-refs and a cross-domain ref handled via a module-local inlined helper. All 8 incremental deploys verified clean via /api/health. Previous rev 23 — W4 Slice 3 push: 10 domains extracted total (`reminders`, `frequency-feedback`, `user-profiles`, `category-search-history`, `time-slots`, `backups`, `group-collections`, `hosting`, `seen-activities`, `curated-venues`). storage.ts 4,172 → 3,579 lines. Each extraction verified live via /api/health (17/17 jobs healthy, db connected). Previous rev 22 — W4 Slice 3 kicked off: scaffold for split storage.ts created at `server/storage/` with README documenting the field-assignment delegation pattern. First two domains extracted (reminders, frequency-feedback). All callsites unchanged. Future sessions continue the pattern through ~17 remaining domains. Previous rev 21 — W8 Sub-track A.7 shipped: post-event feedback dialog now auto-submits attendance on first Yes/No tap by default; opt-in "share more details" link gates the multi-step wizard. Notification copy updated. W8 sub-track A fully closed (A, A.5, A.6, A.7 all live). Previous rev 20 — W8 Sub-track A.6 shipped: dashboard "Past Events" filters to events the user attended (RSVP=yes), section renamed "Events you went to". No server changes — `/api/user/events` already carries per-user RSVP. Group-detail view unchanged. Previous rev 19 — W8 Sub-track A.5 shipped: `processQuorumChecks` now auto-promotes proposed → scheduled when quorum is met, instead of just skipping. New `promoteProposedToScheduled` helper mirrors the manual finalize endpoint. No-op if organizer already finalized. Type-check clean. Previous rev 18 — W8 Sub-track A fully closed: deploy went out (after a Railway GCP-account-suspension outage held it up overnight) and the backfill ran lax (≥1 yes-RSVP) against prod. `venue_visit_history` went 0→6 rows; `itineraries.completed` went 1→7 of 56. Added `--remove` mode to the backfill script (`37a74ef`) as a corrective mechanism for false positives. Live job uses ≥2 threshold (`e2bf7ca`); backfill uses ≥1 with removability — asymmetry by design (adding signal is cheap, removing it is easy via --remove). Follow-ups A.5/A.6/A.7 still ahead. W9 Sub-track A was the prior milestone, `7f33c47..df0f5cf`.)_
 
 ## Context
 
@@ -35,7 +35,7 @@ This document is the working plan for getting Kinmo V2 production-ready: off Rep
 2. ✅ ~~**W8 Sub-track A.5 — Auto-promote `proposed → scheduled` on quorum met**~~ — shipped 2026-05-20. `processQuorumChecks` quorum-met branch now calls a new `promoteProposedToScheduled` helper that mirrors `POST /api/itineraries/:id/finalize` (status → scheduled, log venue visits, bump group `lastEventDate`/`nextEventDueDate`, run `maintainEventPipeline`) minus the venue-hours UX guard. Gated by the existing `rsvpDeadline + 24h` window so we don't promote prematurely. If status was already `scheduled`, no-op (organizer beat us to it). Type-check clean.
 3. ✅ ~~**W8 Sub-track A.6 — Per-member past-events view**~~ — shipped 2026-05-20. Dashboard "Past Events" section now filters to events the logged-in user actually attended (RSVP=yes/going), and the header reads "Events you went to (N)" instead of "Past Events". Group-detail past-events list left unchanged — that view is the group's history, not personal attendance. New `userAttendedEvent` helper in `client/src/lib/events.ts`. No server changes needed (the existing `/api/user/events` payload already carries the user's RSVP per event). Feedback override path deferred to A.7 since feedback collection isn't reliable enough yet (~4/50 fill rate).
 4. ✅ ~~**W8 Sub-track A.7 — Feedback collection improvements**~~ — shipped 2026-05-20. `PostEventFeedbackDialog` now auto-submits on the first Yes/No tap by default (was: tap → Continue → 4 rating screens → Submit). Power users get a small "I'd like to share more details first" link that opts into the existing multi-step wizard. Notification copy updated to match ("One tap to let us know how it went"). The trigger (`processPostEventFeedbackRequests` daily job, 1-2 days post-completion, idempotent via `reminderLogs`) was already correct and untouched. Whether the 4/50 fill rate actually moves is empirical — needs a few weeks of dogfood data to tell. Override path (feedback overrides RSVP=yes in A.6's view) NOT shipped here; trivial follow-up once we trust the new fill rate.
-5. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain) not started. Slice 3 (split `storage.ts`) **in progress** — 14 domains extracted so far (`reminders`, `frequency-feedback`, `user-profiles`, `category-search-history`, `time-slots`, `backups`, `group-collections`, `hosting`, `seen-activities`, `curated-venues`, `saved-places`, `availability`, `standalone-events`, `auto-scheduled-events`). storage.ts: 4,172 → 2,659 lines (~36% reduction). Pattern proven on simple, medium, large (388-line auto-scheduled-events), with internal self-refs and cross-domain refs (handled via inlined helpers). All ~660 callsites still unchanged. Caught one pre-existing latent bug along the way (a route calling a method that wasn't extracted; recovered from git history). Remaining: admin stats, scraped venues import, then the biggest ones (groups, members, itineraries, rsvps, activities, voting events, user-operations, preference-signals, venue-visit-tracking, member-group-preferences).
+5. **W4 remaining** — Architecture cleanup: Slice 1 (group `server/` by domain) not started. Slice 3 (split `storage.ts`) **in progress** — 19 domains extracted (`reminders`, `frequency-feedback`, `user-profiles`, `category-search-history`, `time-slots`, `backups`, `group-collections`, `hosting`, `seen-activities`, `curated-venues`, `saved-places`, `availability`, `standalone-events`, `auto-scheduled-events`, `admin-stats`, `scraped-venues-import`, `rsvps`, `preference-signals`, `venue-visit-tracking`). storage.ts: 4,148 → **1,985 lines** (~52% reduction). All ~660 callsites still unchanged. Remaining: the biggest load-bearing domains — users (OIDC + member linking), members, groups (~600 lines incl. soft-delete + auth), activities, voting events + votes, itineraries (the biggest at ~600 lines), itinerary invites, member-group preferences, saved itineraries. These have heavier cross-method coupling (groups ↔ members ↔ itineraries ↔ rsvps ↔ activities) so each warrants a fresh session with full attention rather than a tail-end push.
 6. **W6 remaining** — Sub-track H (background-job healthchecks). G (account deletion flow) shipped in `d1d7471`. Pairs naturally with W9 — a healthcheck that watches scheduler heartbeats would have surfaced today's hang.
 7. **W5 ongoing** — Code hygiene: fire-and-forget `.catch()` Sentry wiring, frontend Sentry client init
 8. **Apply migration 0016** to Railway (missing indexes for `members.userId`, `rsvps.userId`, cache tables)
@@ -377,8 +377,49 @@ Break `server/routes.ts` into `server/routes/<domain>.ts` files:
 - ... etc.
 Each file exports a `Router`. Main `index.ts` mounts them.
 
-**Slice 3: Split storage.ts**
-Same pattern — break into `storage/groups.ts`, `storage/events.ts`, etc.
+**Slice 3: Split storage.ts** 🔄 In progress (rev 25 — 52% reduction so far)
+
+Pattern: each domain exports a plain object; `DatabaseStorage` keeps the same shape via field-assignment delegation (`createRsvp = rsvpsStorage.createRsvp`). All callsites of `storage.foo(...)` unchanged. Documented at `server/storage/README.md`.
+
+**Extracted (19 domains, storage.ts 4,148 → 1,985 lines):**
+
+| Domain | Methods | Notes |
+|---|---|---|
+| reminders | 2 | trivial |
+| frequency-feedback | 2 | trivial |
+| user-profiles | 2 | trivial |
+| category-search-history | 2 | trivial |
+| time-slots | 11 | proposed slots + votes |
+| backups | 5 | self-ref via `backupsStorage.X` |
+| group-collections | 7 | |
+| hosting | 9 | event hosting + host assignments |
+| seen-activities | 2 | |
+| curated-venues | 2 | |
+| saved-places | 13 | member favorites + user saved + group saved |
+| availability | 17 | pulses + responses; 5 self-refs |
+| standalone-events | 11 | cross-ref `this.getUser` inlined as direct db query |
+| auto-scheduled-events | 14 | 388 lines, largest; `fetchItineraryWithItems` local helper |
+| admin-stats | 2 | ~320 lines of SQL aggregation |
+| scraped-venues-import | 4 | `getPlaceDetails` import path updated |
+| rsvps | 4 | pure CRUD |
+| preference-signals | 2 | trivial |
+| venue-visit-tracking | 3 | reuses `fetchItineraryWithItems` helper |
+
+**Remaining domains** (recommend one per session — heavy cross-coupling):
+
+| Domain | Est. lines | Why it's tricky |
+|---|---|---|
+| user-operations | ~290 | OIDC upsert + member linking; called from auth middleware |
+| members | ~140 | Soft-delete + group membership checks; touched by groups/rsvps/itineraries |
+| groups | ~600 | Soft-delete, auth checks, preference rollups; central hub |
+| activities | ~200 | AI-generated venue suggestions; touched by recommender |
+| voting-events + votes | ~200 | User-added venues + upvote/downvote; cross-refs to activities |
+| member-group-preferences | ~40 | Standalone but tied to members domain |
+| itineraries + items | ~600 | Largest single domain; `getItinerary` already inlined twice as a local helper elsewhere — extracting properly lets those go back to a real import |
+| itinerary-invites | ~80 | Tied to itineraries |
+| saved-itineraries | ~30 | Should live in itineraries module |
+
+Order matters less than discipline: pick one, extract cleanly, verify `npm run check` + `/api/health` after deploy, commit. The cross-coupling means each domain extraction may require adjusting one or two already-extracted modules' local helpers to use the new real import.
 
 **Slice 4: Standardize error responses ✅ Partial (leak-fix done)**
 
