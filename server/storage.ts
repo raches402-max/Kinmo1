@@ -53,6 +53,8 @@ import { timeSlotsStorage } from "./storage/time-slots";
 import { backupsStorage } from "./storage/backups";
 import { groupCollectionsStorage } from "./storage/group-collections";
 import { hostingStorage } from "./storage/hosting";
+import { seenActivitiesStorage } from "./storage/seen-activities";
+import { curatedVenuesStorage } from "./storage/curated-venues";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -2953,58 +2955,13 @@ export class DatabaseStorage implements IStorage {
     return enrichedVenues.length;
   }
 
-  // Seen Activities
-  async markVenuesAsSeen(groupId: string, venues: Array<{venueName: string, googlePlaceId?: string, category: string}>): Promise<void> {
-    if (venues.length === 0) return;
+  // Seen Activities — extracted to ./storage/seen-activities.ts (W4 Slice 3)
+  markVenuesAsSeen = seenActivitiesStorage.markVenuesAsSeen;
+  getSeenVenues = seenActivitiesStorage.getSeenVenues;
 
-    const values = venues.map(v => ({
-      groupId,
-      venueName: v.venueName,
-      googlePlaceId: v.googlePlaceId || null,
-      category: v.category
-    }));
-
-    await db.insert(seenActivities).values(values).onConflictDoNothing();
-  }
-
-  async getSeenVenues(groupId: string): Promise<Array<{venueName: string, googlePlaceId?: string, category: string}>> {
-    const seen = await db
-      .select({
-        venueName: seenActivities.venueName,
-        googlePlaceId: seenActivities.googlePlaceId,
-        category: seenActivities.category
-      })
-      .from(seenActivities)
-      .where(eq(seenActivities.groupId, groupId));
-
-    return seen.map(s => ({
-      venueName: s.venueName,
-      googlePlaceId: s.googlePlaceId || undefined,
-      category: s.category
-    }));
-  }
-
-  // Curated Venues Management
-  async getAllCuratedVenues(): Promise<Array<{id: string; name: string; category: string; tags: string[] | null}>> {
-    const venues = await db
-      .select({
-        id: curatedVenues.id,
-        name: curatedVenues.name,
-        category: curatedVenues.category,
-        tags: curatedVenues.tags
-      })
-      .from(curatedVenues)
-      .where(eq(curatedVenues.isActive, true));
-
-    return venues;
-  }
-
-  async updateVenueCategory(id: string, category: string): Promise<void> {
-    await db
-      .update(curatedVenues)
-      .set({ category })
-      .where(eq(curatedVenues.id, id));
-  }
+  // Curated Venues Management — extracted to ./storage/curated-venues.ts (W4 Slice 3)
+  getAllCuratedVenues = curatedVenuesStorage.getAllCuratedVenues;
+  updateVenueCategory = curatedVenuesStorage.updateVenueCategory;
 
   // Member Favorite Venues
   async getMemberFavoriteVenues(memberId: string): Promise<MemberFavoriteVenue[]> {

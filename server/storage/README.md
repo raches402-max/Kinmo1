@@ -52,6 +52,8 @@ class, `this` no longer resolves.
 - `backups.ts` — database backup operations (5 methods, 217 lines)
 - `group-collections.ts` — group collections + collection assignments (7 methods)
 - `hosting.ts` — event hosting + host assignments (9 methods)
+- `seen-activities.ts` — `markVenuesAsSeen`, `getSeenVenues`
+- `curated-venues.ts` — `getAllCuratedVenues`, `updateVenueCategory`
 
 ## Self-references when extracting
 
