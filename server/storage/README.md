@@ -58,6 +58,8 @@ class, `this` no longer resolves.
 - `availability.ts` — availability pulses + responses (17 methods, multiple internal cross-refs rewritten as `availabilityStorage.X`)
 - `standalone-events.ts` — standalone events + invitees (11 methods, one cross-domain `this.getUser` inlined as a direct db query to avoid coupling)
 - `auto-scheduled-events.ts` — auto-scheduled events lifecycle (14 methods, 388 lines). Two `this.getAutoScheduledEvent` self-refs rewritten as `autoScheduledEventsStorage.X`. Two `this.getItinerary` cross-domain refs replaced by a module-local `fetchItineraryWithItems` helper that inlines the same db query, keeping this module decoupled from the not-yet-extracted itineraries domain.
+- `admin-stats.ts` — `getAdminStats` + `getTestAccounts` (2 methods, ~320 lines). Pure SQL aggregation across users/groups/itineraries/rsvps — no internal cross-refs.
+- `scraped-venues-import.ts` — clear/insert/compare/import scraped venues (4 methods, ~160 lines). Dynamic import of `getPlaceDetails` rewritten as `'../google-places'` (path adjusted for new module location).
 
 ## Self-references when extracting
 
