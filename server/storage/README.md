@@ -46,10 +46,15 @@ class, `this` no longer resolves.
 
 - `reminders.ts` — `logReminder`, `getReminderLogs`
 - `frequency-feedback.ts` — `createFrequencyFeedback`, `getGroupFrequencyFeedback`
+- `user-profiles.ts` — `getUserProfile`, `upsertUserProfile`
+- `category-search-history.ts` — `saveCategorySearch`, `getRecentCategorySearches`
+- `time-slots.ts` — proposed time slots + time slot votes (11 methods)
 
 ## What's left
 
-Everything else in `server/storage.ts`. Natural next candidates (small, low
-cross-ref): user profiles, auto-scheduled events, category search history,
-time-slot voting. Then the bigger domains (groups, members, itineraries,
-rsvps) once the pattern feels stable.
+Everything else in `server/storage.ts`. Natural next candidates: database
+backups (medium, has one internal `this.` ref to handle), auto-scheduled
+events (medium), group collections (small), event hosting + host
+assignments, scraped venues import, seen activities, curated venues, member
+favorite venues, user/group saved places, standalone events, availability
+pulses. Then the biggest domains (groups, members, itineraries, rsvps).
