@@ -35,16 +35,6 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, sql, and, or, inArray, isNull, isNotNull, gt, gte, asc, lt } from "drizzle-orm";
-import { randomBytes } from "crypto";
-import { geocodeLocation } from "./google-places";
-import {
-  trustFieldsForSource,
-  dirtyingTrustFields,
-  ACTIVITY_DIRTYING_FIELDS,
-  VOTING_EVENT_DIRTYING_FIELDS,
-  ITINERARY_ITEM_DIRTYING_FIELDS,
-  type TrustSource,
-} from "./trust-state";
 import { remindersStorage } from "./storage/reminders";
 import { frequencyFeedbackStorage } from "./storage/frequency-feedback";
 import { userProfilesStorage } from "./storage/user-profiles";
@@ -70,6 +60,7 @@ import { activitiesStorage } from "./storage/activities";
 import { membersStorage } from "./storage/members";
 import { usersStorage } from "./storage/users";
 import { itinerariesStorage } from "./storage/itineraries";
+import { groupsStorage } from "./storage/groups";
 
 export interface IStorage {
   // User operations (required for Replit Auth)
@@ -296,475 +287,25 @@ export class DatabaseStorage implements IStorage {
   getUserByEmail = usersStorage.getUserByEmail;
   upsertUser = usersStorage.upsertUser;
 
-  // Group operations
-  async createGroup(insertGroup: InsertGroup, userId: string, memberInputs: Array<{name?: string, email?: string}>): Promise<Group> {
-    // Generate unique shareable link
-    const shareableLink = randomBytes(16).toString('hex');
-
-    const [group] = await db
-      .insert(groups)
-      .values({ ...insertGroup, userId, shareableLink })
-      .returning();
-
-    // Get organizer's user info
-    const organizer = await db.select().from(users).where(eq(users.id, userId)).then(rows => rows[0]);
-
-    // Always add the organizer as a member first
-    const organizerMember = {
-      groupId: group.id,
-      name: organizer?.firstName && organizer?.lastName
-        ? `${organizer.firstName} ${organizer.lastName}`.trim()
-        : organizer?.firstName || organizer?.email?.split('@')[0] || 'Organizer',
-      email: organizer?.email || null,
-      claimToken: randomBytes(16).toString('hex'),
-      isOrganizer: true,
-      userId: userId,
-      invitationSent: false,
-      hasJoined: true, // Organizer is already "joined"
-    };
-
-    // Create additional members if provided (skip any that match organizer's email)
-    const additionalMembers = memberInputs
-      .filter(m => !organizer?.email || m.email?.toLowerCase() !== organizer.email.toLowerCase())
-      .map((m) => ({
-        groupId: group.id,
-        name: m.name || null,
-        email: m.email || null,
-        claimToken: randomBytes(16).toString('hex'),
-        isOrganizer: false,
-        userId: null,
-        invitationSent: false,
-        hasJoined: false,
-      }));
-
-    await db.insert(members).values([organizerMember, ...additionalMembers]);
-
-    // Automatically backup after creation
-    await this.createAutomaticBackup(group.id, userId, 'create');
-
-    return group;
-  }
-
-  async getUserGroups(userId: string): Promise<Array<Group & { members: Array<{ id: string; name: string | null; email: string | null }> }>> {
-    // RECONCILIATION STEP: Reclaim orphaned data where user memberships were nulled
-    // This happens when user record was deleted/recreated during auth issues
-    const user = await db.select().from(users).where(eq(users.id, userId)).then(rows => rows[0]);
-    if (user?.email) {
-      // 1. Find and re-link orphaned organizer groups (where groups.userId is null)
-      const orphanedGroups = await db
-        .selectDistinct()
-        .from(groups)
-        .innerJoin(members, eq(members.groupId, groups.id))
-        .where(and(
-          isNull(groups.userId), // Group has no owner
-          eq(members.isOrganizer, true), // Member is marked as organizer
-          eq(members.email, user.email), // Email matches current user
-          isNull(groups.deletedAt) // Not soft-deleted
-        ))
-        .then(rows => rows.map(row => row.groups));
-
-      if (orphanedGroups.length > 0) {
-        console.log(`[Reconciliation] Re-linking ${orphanedGroups.length} orphaned groups to user ${userId} (${user.email})`);
-        await db
-          .update(groups)
-          .set({ userId })
-          .where(inArray(groups.id, orphanedGroups.map(g => g.id)));
-      }
-
-      // 2. Auto-link Tier 1 members: email match + (invitation was sent OR joined as guest via shareable link)
-      // These are explicit invites or self-joins, so we auto-claim without user confirmation
-      const tier1Members = await db
-        .select()
-        .from(members)
-        .where(and(
-          isNull(members.userId),
-          eq(members.email, user.email),
-          or(
-            eq(members.invitationSent, true), // Explicitly invited via email
-            eq(members.isGuest, true) // Joined as guest via shareable link (gave consent by joining)
-          )
-        ));
-
-      if (tier1Members.length > 0) {
-        console.log(`[Auto-Link] Linking ${tier1Members.length} Tier 1 member records to user ${userId} (${user.email})`);
-        await db
-          .update(members)
-          .set({ userId, hasJoined: true, isGuest: false, claimedAt: new Date() })
-          .where(inArray(members.id, tier1Members.map(m => m.id)));
-      }
-
-      // 3. Auto-link standalone event invitees by email
-      const standaloneInvitees = await db
-        .select()
-        .from(standaloneEventInvitees)
-        .where(and(
-          isNull(standaloneEventInvitees.userId),
-          eq(standaloneEventInvitees.inviteeEmail, user.email)
-        ));
-
-      if (standaloneInvitees.length > 0) {
-        console.log(`[Auto-Link] Linking ${standaloneInvitees.length} standalone event invitees to user ${userId} (${user.email})`);
-        await db
-          .update(standaloneEventInvitees)
-          .set({ userId })
-          .where(inArray(standaloneEventInvitees.id, standaloneInvitees.map(i => i.id)));
-      }
-    }
-
-    // Get groups where user is the organizer (exclude soft-deleted)
-    const organizedGroups = await db
-      .select()
-      .from(groups)
-      .where(and(eq(groups.userId, userId), isNull(groups.deletedAt)));
-
-    // Get groups where user is a member (exclude soft-deleted)
-    const memberGroups = await db
-      .selectDistinct()
-      .from(groups)
-      .innerJoin(members, eq(members.groupId, groups.id))
-      .where(and(eq(members.userId, userId), isNull(groups.deletedAt)))
-      .then(rows => rows.map(row => row.groups));
-
-    // Combine and deduplicate by group ID
-    const allGroups = [...organizedGroups, ...memberGroups];
-    const uniqueGroups = Array.from(
-      new Map(allGroups.map(g => [g.id, g])).values()
-    );
-
-    // Fetch members for each group (sanitized - only safe fields)
-    const groupsWithMembers = await Promise.all(
-      uniqueGroups.map(async (group) => {
-        const groupMembers = await this.getGroupMembers(group.id);
-        // Sanitize member data - only return safe fields for preview
-        const sanitizedMembers = groupMembers.map(member => ({
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          userId: member.userId,
-          isOrganizer: member.isOrganizer,
-          isGuest: member.isGuest,
-          profileCompleted: member.userId === userId ? member.profileCompleted : undefined
-        }));
-        return {
-          ...group,
-          members: sanitizedMembers
-        };
-      })
-    );
-
-    return groupsWithMembers;
-  }
-
-  // Get all contacts across all groups the user belongs to (for standalone event invites)
-  async getUserContacts(userId: string): Promise<Array<{
-    id: string; // Composite key: memberId
-    name: string;
-    email: string | null;
-    userId: string | null;
-    memberId: string;
-    sourceGroupId: string;
-    sourceGroupName: string;
-    sourceGroupEmoji: string | null;
-  }>> {
-    // Get all groups user belongs to
-    const userGroups = await this.getUserGroups(userId);
-
-    // Collect all members from all groups
-    const allContacts: Array<{
-      id: string;
-      name: string;
-      email: string | null;
-      userId: string | null;
-      memberId: string;
-      sourceGroupId: string;
-      sourceGroupName: string;
-      sourceGroupEmoji: string | null;
-    }> = [];
-
-    for (const group of userGroups) {
-      const groupMembers = await this.getGroupMembers(group.id);
-      for (const member of groupMembers) {
-        // Skip the current user themselves
-        if (member.userId === userId) continue;
-
-        allContacts.push({
-          id: member.id, // Use memberId as unique identifier
-          name: member.name || member.email?.split('@')[0] || 'Unknown',
-          email: member.email,
-          userId: member.userId,
-          memberId: member.id,
-          sourceGroupId: group.id,
-          sourceGroupName: group.name,
-          sourceGroupEmoji: group.emoji,
-        });
-      }
-    }
-
-    // Deduplicate by email (prioritize contacts with userId set)
-    const contactsByEmail = new Map<string, typeof allContacts[0]>();
-    const contactsWithoutEmail: typeof allContacts = [];
-
-    for (const contact of allContacts) {
-      if (contact.email) {
-        const existing = contactsByEmail.get(contact.email.toLowerCase());
-        // Keep the one with userId, or the first one if neither has userId
-        if (!existing || (contact.userId && !existing.userId)) {
-          contactsByEmail.set(contact.email.toLowerCase(), contact);
-        }
-      } else {
-        // Contacts without email can't be deduplicated
-        contactsWithoutEmail.push(contact);
-      }
-    }
-
-    return [...contactsByEmail.values(), ...contactsWithoutEmail];
-  }
-
-  async getAllGroups(): Promise<Group[]> {
-    return await db.select().from(groups).where(isNull(groups.deletedAt));
-  }
-
-  async getGroup(id: string): Promise<Group | undefined> {
-    const [group] = await db.select().from(groups).where(and(eq(groups.id, id), isNull(groups.deletedAt)));
-    return group || undefined;
-  }
-
-  async getGroupByShareableLink(link: string): Promise<Group | undefined> {
-    const [group] = await db.select().from(groups).where(and(eq(groups.shareableLink, link), isNull(groups.deletedAt)));
-    return group || undefined;
-  }
+  // Groups — extracted to ./storage/groups.ts (W4 Slice 3)
+  createGroup = groupsStorage.createGroup;
+  getUserGroups = groupsStorage.getUserGroups;
+  getUserContacts = groupsStorage.getUserContacts;
+  getAllGroups = groupsStorage.getAllGroups;
+  getGroup = groupsStorage.getGroup;
+  getGroupByShareableLink = groupsStorage.getGroupByShareableLink;
+  updateGroupStatus = groupsStorage.updateGroupStatus;
+  addRejectedVenue = groupsStorage.addRejectedVenue;
+  updateGroup = groupsStorage.updateGroup;
+  softDeleteGroup = groupsStorage.softDeleteGroup;
+  cleanupOrphanedVotingData = groupsStorage.cleanupOrphanedVotingData;
+  hardDeleteGroup = groupsStorage.hardDeleteGroup;
+  createAutomaticBackup = groupsStorage.createAutomaticBackup;
 
   // Members — extracted to ./storage/members.ts (W4 Slice 3)
   getGroupMembers = membersStorage.getGroupMembers;
   createMember = membersStorage.createMember;
-
-  // Activities — extracted to ./storage/activities.ts (W4 Slice 3)
-  getGroupActivities = activitiesStorage.getGroupActivities;
-  getAllGroupActivities = activitiesStorage.getAllGroupActivities;
-  archiveGroupActivities = activitiesStorage.archiveGroupActivities;
-  deleteAllGroupActivities = activitiesStorage.deleteAllGroupActivities;
-  deleteActivity = activitiesStorage.deleteActivity;
-  getActivity = activitiesStorage.getActivity;
-  createActivity = activitiesStorage.createActivity;
-  createActivities = activitiesStorage.createActivities;
-
-  async updateGroupStatus(id: string, status: string, error?: string): Promise<void> {
-    await db
-      .update(groups)
-      .set({
-        activityGenerationStatus: status,
-        activityGenerationError: error || null
-      })
-      .where(eq(groups.id, id));
-  }
-
-  async addRejectedVenue(groupId: string, venueName: string): Promise<void> {
-    // Normalize venue name for consistent matching
-    const normalized = venueName.trim().toLowerCase();
-    
-    // Atomic update: only append if not already present
-    await db
-      .update(groups)
-      .set({
-        rejectedVenues: sql`CASE 
-          WHEN ${groups.rejectedVenues} IS NULL THEN ARRAY[${normalized}]::text[]
-          WHEN NOT ${groups.rejectedVenues} @> ARRAY[${normalized}]::text[] THEN array_append(${groups.rejectedVenues}, ${normalized})
-          ELSE ${groups.rejectedVenues}
-        END`
-      })
-      .where(eq(groups.id, groupId));
-  }
-
   markInvitationsSent = membersStorage.markInvitationsSent;
-
-  updateActivityFeedback = activitiesStorage.updateActivityFeedback;
-
-  async updateGroup(id: string, updates: UpdateGroup): Promise<Group> {
-    const [group] = await db
-      .update(groups)
-      .set(updates)
-      .where(eq(groups.id, id))
-      .returning();
-
-    // Automatically backup after update (even if userId is null - orphaned groups still get backups)
-    await this.createAutomaticBackup(group.id, group.userId, 'update');
-
-    return group;
-  }
-
-  /**
-   * Soft delete a group and clean up associated voting events
-   * This prevents orphaned favorited venues from appearing in other groups
-   */
-  async softDeleteGroup(id: string): Promise<void> {
-    // Create backup before deletion
-    const group = await this.getGroup(id);
-    if (group) {
-      await this.createAutomaticBackup(group.id, group.userId, 'delete');
-    }
-
-    // Get all voting event IDs for this group before deletion
-    const eventsToDelete = await db
-      .select({ id: votingEvents.id })
-      .from(votingEvents)
-      .where(eq(votingEvents.groupId, id));
-
-    const eventIds = eventsToDelete.map(e => e.id);
-
-    // Delete orphaned votes first (before deleting the voting events they reference)
-    if (eventIds.length > 0) {
-      await db
-        .delete(votes)
-        .where(inArray(votes.eventId, eventIds));
-    }
-
-    // Hard delete associated voting events to prevent orphans
-    await db
-      .delete(votingEvents)
-      .where(eq(votingEvents.groupId, id));
-
-    // Soft delete the group
-    await db
-      .update(groups)
-      .set({ deletedAt: sql`now()` })
-      .where(eq(groups.id, id));
-
-    console.log(`[Soft Delete] Group ${id} soft-deleted, ${eventIds.length} voting events and associated votes cleaned up`);
-  }
-
-  /**
-   * Clean up orphaned voting data from deleted groups
-   * Finds voting events that belong to soft-deleted groups and removes them along with associated votes
-   */
-  async cleanupOrphanedVotingData(): Promise<{ votingEventsDeleted: number; votesDeleted: number }> {
-    // Find voting events that belong to deleted groups
-    const orphanedEvents = await db
-      .select({ id: votingEvents.id })
-      .from(votingEvents)
-      .leftJoin(groups, eq(votingEvents.groupId, groups.id))
-      .where(or(
-        isNull(groups.id), // group doesn't exist at all
-        isNotNull(groups.deletedAt) // group is soft deleted
-      ));
-
-    const orphanedEventIds = orphanedEvents.map(e => e.id);
-
-    let votesDeleted = 0;
-    let votingEventsDeleted = 0;
-
-    if (orphanedEventIds.length > 0) {
-      // Delete orphaned votes first
-      const deletedVotes = await db
-        .delete(votes)
-        .where(inArray(votes.eventId, orphanedEventIds))
-        .returning();
-
-      votesDeleted = deletedVotes.length;
-
-      // Delete orphaned voting events
-      const deletedEvents = await db
-        .delete(votingEvents)
-        .where(inArray(votingEvents.id, orphanedEventIds))
-        .returning();
-
-      votingEventsDeleted = deletedEvents.length;
-
-      console.log(`[Cleanup] Removed ${votingEventsDeleted} orphaned voting events and ${votesDeleted} orphaned votes`);
-    } else {
-      console.log(`[Cleanup] No orphaned voting data found`);
-    }
-
-    // Also clean up votes that reference non-existent voting events
-    const orphanedVotes = await db
-      .select({ id: votes.id })
-      .from(votes)
-      .leftJoin(votingEvents, eq(votes.eventId, votingEvents.id))
-      .where(isNull(votingEvents.id));
-
-    if (orphanedVotes.length > 0) {
-      const orphanedVoteIds = orphanedVotes.map(v => v.id);
-      const additionalDeletedVotes = await db
-        .delete(votes)
-        .where(inArray(votes.id, orphanedVoteIds))
-        .returning();
-
-      votesDeleted += additionalDeletedVotes.length;
-      console.log(`[Cleanup] Removed ${additionalDeletedVotes.length} additional votes referencing non-existent events`);
-    }
-
-    return { votingEventsDeleted, votesDeleted };
-  }
-
-  /**
-   * Permanently delete a group and all associated data
-   * Creates backup before deletion. CASCADE deletes will handle all related data.
-   * WARNING: This is irreversible!
-   */
-  async hardDeleteGroup(id: string): Promise<void> {
-    // Create backup before deletion
-    const group = await this.getGroup(id);
-    if (group) {
-      await this.createAutomaticBackup(group.id, group.userId, 'hard_delete');
-      console.log(`[Hard Delete] Created backup for group ${id}`);
-    }
-
-    // Hard delete the group - CASCADE deletes will automatically remove:
-    // - members, activities, votingEvents, votes, itineraries, rsvps,
-    // - itineraryItems, invites, preferenceSignals, seenActivities,
-    // - categorySearchHistory, autoScheduledEvents, frequencyFeedback, etc.
-    await db
-      .delete(groups)
-      .where(eq(groups.id, id));
-
-    console.log(`[Hard Delete] Group ${id} permanently deleted with all associated data`);
-  }
-
-  // Automatic backup function - creates snapshot of group data
-  async createAutomaticBackup(groupId: string, userId: string | null, trigger: string): Promise<void> {
-    try {
-      // Get complete group data
-      const group = await this.getGroup(groupId);
-      if (!group) return;
-      
-      const groupMembers = await this.getGroupMembers(groupId);
-      
-      // Create snapshot
-      const snapshotData = {
-        group,
-        members: groupMembers,
-        backedUpAt: new Date().toISOString(),
-      };
-      
-      await db.insert(groupBackups).values({
-        userId,
-        groupId,
-        snapshotData: snapshotData as any,
-        backupTrigger: trigger,
-      });
-      
-      // Keep only last 10 backups per group (use groupId only for orphaned groups)
-      const whereClause = userId 
-        ? and(eq(groupBackups.userId, userId), eq(groupBackups.groupId, groupId))
-        : eq(groupBackups.groupId, groupId);
-      
-      const allBackups = await db
-        .select()
-        .from(groupBackups)
-        .where(whereClause)
-        .orderBy(desc(groupBackups.createdAt));
-      
-      if (allBackups.length > 10) {
-        const toDelete = allBackups.slice(10);
-        await db.delete(groupBackups).where(
-          inArray(groupBackups.id, toDelete.map(b => b.id))
-        );
-      }
-    } catch (error) {
-      console.error(`Failed to create automatic backup for group ${groupId}:`, error);
-      // Don't throw - backups shouldn't break main operations
-    }
-  }
-
   getMember = membersStorage.getMember;
   getGroupMemberByUserId = membersStorage.getGroupMemberByUserId;
   updateMember = membersStorage.updateMember;
@@ -777,6 +318,17 @@ export class DatabaseStorage implements IStorage {
   // Member Group Preferences operations
   getMemberGroupPreferences = memberGroupPreferencesStorage.getMemberGroupPreferences;
   upsertMemberGroupPreferences = memberGroupPreferencesStorage.upsertMemberGroupPreferences;
+
+  // Activities — extracted to ./storage/activities.ts (W4 Slice 3)
+  getGroupActivities = activitiesStorage.getGroupActivities;
+  getAllGroupActivities = activitiesStorage.getAllGroupActivities;
+  archiveGroupActivities = activitiesStorage.archiveGroupActivities;
+  deleteAllGroupActivities = activitiesStorage.deleteAllGroupActivities;
+  deleteActivity = activitiesStorage.deleteActivity;
+  getActivity = activitiesStorage.getActivity;
+  createActivity = activitiesStorage.createActivity;
+  createActivities = activitiesStorage.createActivities;
+  updateActivityFeedback = activitiesStorage.updateActivityFeedback;
 
   // Voting Events + Votes — extracted to ./storage/voting-events.ts (W4 Slice 3)
   createVotingEvent = votingEventsStorage.createVotingEvent;
